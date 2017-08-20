@@ -1,18 +1,5 @@
 import re
 
-class Node:
-    def __init__(self, insn):
-        self.label = insn.ops[0]
-        initChild(insn)
-
-    def initChild(insn):
-        if insn.mnem in ['add', 'sub', 'imul', 'idiv', 'mul', 'div']:
-            self.childs = insn.ops
-        elif insn.mnem in ['mov', 'lea']:
-            self.childs = insn.ops[1:]
-        else:
-            print('unexepected mnemonic')
-
 class Insn:
     def __init__(self, insn):
         self.mnem = insn[0]
@@ -37,33 +24,18 @@ def convRef(s):
         else:
             return '*(%s + (%s)' % (reg, n)
 
-REGS = ['eax', 'ebx', 'ecx', 'edx', 'edi', 'esi']
-
 def isLiteral(s):
     return re.match(r'\-?[1-9][0-9]*', s) != None or \
             re.match(r'\-?0x[1-9][0-9]*', s) != None
 
-lblMap = {}
-def appendVersion(insn):
-    fmt = lambda x, v: x + '.' + str(v)
-    if len(insn.ops) > 1:
-        lbls = insn.ops[1:]
-        for i, l in enumerate(lbls):
-            if l in lblMap:
-                insn.ops[i+1] = fmt(l, lblMap[l])
-                
-    lbl = insn.ops[0]
-    if not lbl in lblMap:
-        lblMap[lbl] = -1
-    lblMap[lbl] += 1
-    insn.ops[0] = fmt(lbl, lblMap[lbl])
-    return insn
+def isNotImplemented(mnem):
+    return mnem in ['cdq']
 
 def isFuncMnem(mnem):
     return mnem in ['call', 'push', 'pop', 'leave']
 
 def isAssign(mnem):
-    return mnem in ['mov', 'add', 'imul']
+    return mnem in ['mov', 'lea', 'add', 'sub', 'imul', 'mul', 'idiv', 'div']
 
 def isLocal(operand):
     return 'local' in operand
@@ -73,10 +45,11 @@ def asm2LowIr(insns):
         if isFuncMnem(insn.mnem):
             #TODO dealing with function call
             insns[i] = Insn(['nop'])
+        elif isNotImplemented(insn.mnem):
+            insns[i] = Insn(['nop'])
         else:
             insn.ops = list(map(convRef, insn.ops))
             if isAssign(insn.mnem):
-                # insn = appendVersion(insn)
                 insns[i] = insn
     return insns
                 
@@ -103,6 +76,8 @@ def checkDecimal(n):
 def emit(index, label, insns):
     if 'local' in label or checkDecimal(label):
         return label
+    elif insns[index].mnem == 'nop':
+        return emit(index-1, label, insns)
 
     for i in range(index, -1, -1):
         insn = insns[i]
@@ -110,12 +85,13 @@ def emit(index, label, insns):
             print("func")
             return "func"
         else:
+            op, isBinOp = toBinOp(insn.mnem)
             if insn.mnem == 'mov':
                 return insn.ops[1]
-            elif insn.mnem == 'add':
-                return "(%s + %s)" % (emit(i-1, insn.ops[0], insns), emit(i-1, insn.ops[1], insns))
-            elif insn.mnem == 'imul':
-                return "(%s * %s)" % (emit(i-1, insn.ops[0], insns), emit(i-1, insn.ops[1], insns))
+            elif insn.mnem == 'idiv' or insn.mnem == 'div':
+                return "(%s / %s)" % (emit(i-1, 'eax', insns), emit(i-1, insn.ops[0], insns))
+            elif isBinOp:
+                return "(%s %s %s)" % (emit(i-1, insn.ops[0], insns), op, emit(i-1, insn.ops[1], insns))
             else:
                 return 'unknow mnemonic'
 
@@ -126,27 +102,34 @@ def inputCode(fileName):
     insns = list(map(lambda x: x.strip(), f.readlines()))
     return insns
 
+def toBinOp(mnem):
+    if mnem == 'add':
+        return "+", True
+    elif mnem == 'sub':
+        return '-', True
+    elif mnem == 'mul' or mnem == 'imul':
+        return '*', True
+    else:
+        return 'unknown', False
+
 def main(func, argv):
     insns = inputCode(argv[1])
     parsedLines = parse(insns)
+    # print('\n'.join(list(map(str, parsedLines))))
     labeledAsm = asm2LowIr(parsedLines)
-    for l in labeledAsm:
-        print(str(l))
+    print('\n'.join(list(map(str, labeledAsm))))
 
+    print("+++++++++++++++++++++")
     print("%s {" % func)
     for i, l in enumerate(labeledAsm):
+        op, isBinOp = toBinOp(l.mnem)
         if l.mnem == 'mov' and 'local' in l.ops[0]:
             print("%s = %s;" % (l.ops[0], emit(i-1, l.ops[1], labeledAsm)))
-        elif l.mnem == 'add' and 'local' in l.ops[0]:
+        elif isBinOp and 'local' in l.ops[0]:
             left = l.ops[0]
             right1 = emit(i-1, l.ops[0], labeledAsm)
             right2 = emit(i-1, l.ops[1], labeledAsm)
-            print("%s = %s + %s;" % (left, right1, right2))
-        elif l.mnem == 'imul' and 'local' in l.ops[0]:
-            left = l.ops[0]
-            right1 = emit(i-1, l.ops[0], labeledAsm)
-            right2 = emit(i-1, l.ops[1], labeledAsm)
-            print("%s = %s * %s;" % (left, right1, right2))
+            print("%s = %s %s %s;" % (left, right1, op, right2))
         elif l.mnem == 'ret':
             ret = emit(i-1, 'eax', labeledAsm)
             for j in range(i-1, -1, -1):
