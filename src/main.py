@@ -16,7 +16,7 @@ def convRef(s):
         return s
     else:
         reg, n = replacedStr.split(',')
-        q, r = abs(int(n)) >> 4, abs(int(n)) & 3
+        q, r = abs(int(n)) >> 2, abs(int(n)) & 3
         if reg == 'ebp' and int(n) < 0:
             return 'local_%d_%d' % (q, r)
         elif reg == 'ebp' and int(n) > 0:
@@ -85,13 +85,18 @@ def emit(index, label, insns):
             print("func")
             return "func"
         else:
-            op, isBinOp = toBinOp(insn.mnem)
-            if insn.mnem == 'mov':
-                return insn.ops[1]
+            op, isNumOp = toNumericOp(insn.mnem)
+            if insn.mnem == 'mov' or insn.mnem == 'movzx':
+                return emit(i-1, insn.ops[1], insns)
             elif insn.mnem == 'idiv' or insn.mnem == 'div':
                 return "(%s / %s)" % (emit(i-1, 'eax', insns), emit(i-1, insn.ops[0], insns))
-            elif isBinOp:
+            elif isNumOp:
                 return "(%s %s %s)" % (emit(i-1, insn.ops[0], insns), op, emit(i-1, insn.ops[1], insns))
+            elif toCondition(insn.mnem) != None:
+                index = i-1
+                while insns[index].mnem != 'cmp':
+                    index -= 1
+                return "(%s %s %s)" % (emit(index-1, insns[index].ops[0], insns), toCondition(insn.mnem), emit(index-1, insns[index].ops[1], insns))
             else:
                 return 'unknow mnemonic'
 
@@ -102,13 +107,27 @@ def inputCode(fileName):
     insns = list(map(lambda x: x.strip(), f.readlines()))
     return insns
 
-def toBinOp(mnem):
+def toCondition(mnem):
+    if mnem == 'sete':
+        return "=="
+    elif mnem == 'setl':
+        return "<"
+    elif mnem == 'setg':
+        return ">"
+    else:
+        return None
+
+def toNumericOp(mnem):
     if mnem == 'add':
         return "+", True
     elif mnem == 'sub':
         return '-', True
     elif mnem == 'mul' or mnem == 'imul':
         return '*', True
+    elif mnem == 'and':
+        return '&', True
+    elif mnem == 'or':
+        return '|', True
     else:
         return 'unknown', False
 
@@ -122,10 +141,10 @@ def main(func, argv):
     print("+++++++++++++++++++++")
     print("%s {" % func)
     for i, l in enumerate(labeledAsm):
-        op, isBinOp = toBinOp(l.mnem)
+        op, isNumOp = toNumericOp(l.mnem)
         if l.mnem == 'mov' and 'local' in l.ops[0]:
             print("%s = %s;" % (l.ops[0], emit(i-1, l.ops[1], labeledAsm)))
-        elif isBinOp and 'local' in l.ops[0]:
+        elif isNumOp and 'local' in l.ops[0]:
             left = l.ops[0]
             right1 = emit(i-1, l.ops[0], labeledAsm)
             right2 = emit(i-1, l.ops[1], labeledAsm)
