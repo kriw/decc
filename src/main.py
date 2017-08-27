@@ -73,10 +73,25 @@ def checkDecimal(n):
     except ValueError:    
         return False
         
+#FIXME rename func name
+def isLocalLbl(label, ops):
+    return 'local' in label
+    # if 'local' in label:
+    #     if len(ops) > 0:
+    #         return label == ops[0]
+    #     elif len(ops) == 0:
+    #         return False
+    # else:
+    #     return False
+
+def isJmpMnem(mnem):
+    return mnem in ['jmp', 'jle']
 def emit(index, label, insns):
-    if 'local' in label or checkDecimal(label):
+    if isLocalLbl(label, insns[index].ops) or checkDecimal(label):
         return label
     elif insns[index].mnem == 'nop':
+        return emit(index-1, label, insns)
+    elif isJmpMnem(insns[index].mnem):
         return emit(index-1, label, insns)
 
     for i in range(index, -1, -1):
@@ -84,6 +99,8 @@ def emit(index, label, insns):
         if isFuncMnem(insn.mnem):
             print("func")
             return "func"
+        elif not label in insn.ops:
+            continue
         else:
             op, isNumOp = toNumericOp(insn.mnem)
             if insn.mnem == 'mov' or insn.mnem == 'movzx':
@@ -92,11 +109,11 @@ def emit(index, label, insns):
                 return "(%s / %s)" % (emit(i-1, 'eax', insns), emit(i-1, insn.ops[0], insns))
             elif isNumOp:
                 return "(%s %s %s)" % (emit(i-1, insn.ops[0], insns), op, emit(i-1, insn.ops[1], insns))
-            elif toCondition(insn.mnem) != None:
+            elif toSetCond(insn.mnem) != None:
                 index = i-1
                 while insns[index].mnem != 'cmp':
                     index -= 1
-                return "(%s %s %s)" % (emit(index-1, insns[index].ops[0], insns), toCondition(insn.mnem), emit(index-1, insns[index].ops[1], insns))
+                return "(%s %s %s)" % (emit(index-1, insns[index].ops[0], insns), toSetCond(insn.mnem), emit(index-1, insns[index].ops[1], insns))
             else:
                 return 'unknow mnemonic'
 
@@ -107,7 +124,17 @@ def inputCode(fileName):
     insns = list(map(lambda x: x.strip(), f.readlines()))
     return insns
 
-def toCondition(mnem):
+def toJmpCond(mnem):
+    if mnem == 'je':
+        return "=="
+    elif mnem == 'jle':
+        return "<"
+    elif mnem == 'jge':
+        return ">"
+    else:
+        return None
+
+def toSetCond(mnem):
     if mnem == 'sete':
         return "=="
     elif mnem == 'setl':
@@ -130,6 +157,9 @@ def toNumericOp(mnem):
         return '|', True
     else:
         return 'unknown', False
+
+def isLbl4Jmp(lbl):
+    return lbl[0] == '.' and lbl[-1] == ':'
 
 def main(func, argv):
     insns = inputCode(argv[1])
@@ -157,6 +187,16 @@ def main(func, argv):
                     ret = emit(j-1, labeledAsm[j].ops[1], labeledAsm)
                     break
             print("return %s;" % ret)
+        elif isLbl4Jmp(l.mnem):
+            print(l.mnem)
+        elif toJmpCond(l.mnem) != None:
+            index = i-1
+            while labeledAsm[index].mnem != 'cmp':
+                index -= 1
+            ret = "if(%s %s %s) goto %s;" % (emit(index-1, labeledAsm[index].ops[0], labeledAsm), toJmpCond(l.mnem), emit(index-1, labeledAsm[index].ops[1], labeledAsm), l.ops[0])
+            print(ret)
+        # else:
+        #     print('else: ', l.mnem)
     print("}")
 
 
