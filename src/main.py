@@ -44,7 +44,7 @@ def asm2LowIr(insns):
     for i, insn in enumerate(insns):
         if isFuncMnem(insn.mnem):
             #TODO dealing with function call
-            insns[i] = Insn(['nop'])
+            insn.ops = list(map(convRef, insn.ops))
         elif isNotImplemented(insn.mnem):
             insns[i] = Insn(['nop'])
         else:
@@ -76,16 +76,27 @@ def checkDecimal(n):
 #FIXME rename func name
 def isLocalLbl(label, ops):
     return 'local' in label
-    # if 'local' in label:
-    #     if len(ops) > 0:
-    #         return label == ops[0]
-    #     elif len(ops) == 0:
-    #         return False
-    # else:
-    #     return False
 
 def isJmpMnem(mnem):
     return mnem in ['jmp', 'jle']
+
+def checkRetValUsed(index, insns):
+    for insn in insns[index:]:
+        if len(insn.ops) > 1 and insn.ops[1] == 'eax' and isAssign(insn.mnem):
+            return True
+        elif insn.mnem in ['call']:
+            return False
+        elif len(insn.ops) > 0 and insn.ops[0] == 'eax' and isAssign(insn.mnem):
+            return False
+    return False
+
+def restructureFunc(index, funcName, insns):
+    args = []
+    while insns[index].mnem == 'push':
+        args.append(insns[index].ops[0])
+        index -= 1
+    return "%s(%s)" % (funcName, ', '.join(args))
+
 def emit(index, label, insns):
     if isLocalLbl(label, insns[index].ops) or checkDecimal(label):
         return label
@@ -97,8 +108,10 @@ def emit(index, label, insns):
     for i in range(index, -1, -1):
         insn = insns[i]
         if isFuncMnem(insn.mnem):
-            print("func")
-            return "func"
+            if insn.mnem == 'call' and checkRetValUsed(i+1, insns):
+                return restructureFunc(i-1, insn.ops[0], insns)
+            else:
+                continue
         elif not label in insn.ops:
             continue
         else:
@@ -137,6 +150,8 @@ def toJmpCond(mnem):
         return ">="
     elif mnem == 'jg':
         return '>'
+    elif mnem == 'jmp':
+        return 'jmp'
     else:
         return None
 
@@ -196,10 +211,18 @@ def main(func, argv):
         elif isLbl4Jmp(l.mnem):
             print(l.mnem)
         elif toJmpCond(l.mnem) != None:
-            index = i-1
-            while labeledAsm[index].mnem != 'cmp':
-                index -= 1
-            ret = "if(%s %s %s) goto %s;" % (emit(index-1, labeledAsm[index].ops[0], labeledAsm), toJmpCond(l.mnem), emit(index-1, labeledAsm[index].ops[1], labeledAsm), l.ops[0])
+            operator = toJmpCond(l.mnem)
+            ret = ''
+            if operator == 'jmp':
+                ret = 'goto %s' % l.ops[0]
+            else:
+                index = i-1
+                while labeledAsm[index].mnem != 'cmp':
+                    index -= 1
+                ret = "if(%s %s %s) goto %s;" % (emit(index-1, labeledAsm[index].ops[0], labeledAsm), toJmpCond(l.mnem), emit(index-1, labeledAsm[index].ops[1], labeledAsm), l.ops[0])
+            print(ret)
+        elif l.mnem == 'call' and not checkRetValUsed(i+1, labeledAsm):
+            ret = restructureFunc(i-1, l.ops[0], labeledAsm)
             print(ret)
         # else:
         #     print('else: ', l.mnem)
