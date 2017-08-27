@@ -126,7 +126,9 @@ def inputCode(fileName):
 
 def toJmpCond(mnem):
     if mnem == 'je':
-        return "=="
+        return "!="
+    elif mnem == 'jne':
+        return '=='
     elif mnem == 'jle':
         return "<"
     elif mnem == 'jge':
