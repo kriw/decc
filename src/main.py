@@ -130,9 +130,13 @@ def toJmpCond(mnem):
     elif mnem == 'jne':
         return '=='
     elif mnem == 'jle':
-        return "<"
+        return "<="
+    elif mnem == 'jl':
+        return '<'
     elif mnem == 'jge':
-        return ">"
+        return ">="
+    elif mnem == 'jg':
+        return '>'
     else:
         return None
 
