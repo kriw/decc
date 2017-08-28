@@ -1,0 +1,19 @@
+ 524:	55                   	push   ebp
+ 525:	89 e5                	mov    ebp,esp
+ 527:	83 ec 10             	sub    esp,0x10
+ 52a:	e8 39 00 00 00       	call   568 <__x86.get_pc_thunk.ax>
+ 52f:	05 d1 1a 00 00       	add    eax,0x1ad1
+ 534:	c7 45 f4 00 00 00 00 	mov    DWORD PTR [ebp-0xc],0x0
+ 53b:	c7 45 f8 02 00 00 00 	mov    DWORD PTR [ebp-0x8],0x2
+ 542:	ff 75 f8             	push   DWORD PTR [ebp-0x8]
+ 545:	ff 75 f4             	push   DWORD PTR [ebp-0xc]
+ 548:	e8 c0 ff ff ff       	call   50d <add>
+ 54d:	83 c4 08             	add    esp,0x8
+ 550:	89 45 fc             	mov    DWORD PTR [ebp-0x4],eax
+ 553:	ff 75 fc             	push   DWORD PTR [ebp-0x4]
+ 556:	ff 75 f8             	push   DWORD PTR [ebp-0x8]
+ 559:	e8 af ff ff ff       	call   50d <add>
+ 55e:	83 c4 08             	add    esp,0x8
+ 561:	b8 00 00 00 00       	mov    eax,0x0
+ 566:	c9                   	leave  
+ 567:	c3                   	ret    

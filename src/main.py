@@ -1,92 +1,21 @@
 import re
+import insn
+import parser
 
-class Insn:
-    def __init__(self, insn):
-        self.mnem = insn[0]
-        self.ops = insn[1:]
-    def __str__(self):
-        return str(self.mnem) + "\t" \
-                + ', '.join(self.ops)
-
-def convRef(s):
-    replacedStr =  re.sub(
-            r'DWORD PTR ([\-][1-9][0-9]*)\[(ebp)\]',
-            r'\2,\1', s)
-    if replacedStr == s:
-        return s
-    else:
-        reg, n = replacedStr.split(',')
-        q, r = abs(int(n)) >> 2, abs(int(n)) & 3
-        if reg == 'ebp' and int(n) < 0:
-            return 'local_%d_%d' % (q, r)
-        elif reg == 'ebp' and int(n) > 0:
-            return 'arg_%d_%d' % (q, r)
-        else:
-            return '*(%s + (%s)' % (reg, n)
-
-def isLiteral(s):
-    return re.match(r'\-?[1-9][0-9]*', s) != None or \
-            re.match(r'\-?0x[1-9][0-9]*', s) != None
-
-def isNotImplemented(mnem):
-    return mnem in ['cdq']
-
-def isFuncMnem(mnem):
-    return mnem in ['call', 'push', 'pop', 'leave']
-
-def isAssign(mnem):
-    return mnem in ['mov', 'lea', 'add', 'sub', 'imul', 'mul', 'idiv', 'div']
-
-def isLocal(operand):
-    return 'local' in operand
-
-def asm2LowIr(insns):
-    for i, insn in enumerate(insns):
-        if isFuncMnem(insn.mnem):
-            #TODO dealing with function call
-            insn.ops = list(map(convRef, insn.ops))
-        elif isNotImplemented(insn.mnem):
-            insns[i] = Insn(['nop'])
-        else:
-            insn.ops = list(map(convRef, insn.ops))
-            if isAssign(insn.mnem):
-                insns[i] = insn
-    return insns
-                
-
-def parse(insns):
-    parsedLines = []
-    for insn in insns:
-        a = insn.split('\t')
-        if len(a) > 1:
-            b = a[1].split(',')
-            c = list(map(lambda x: x.strip(), [a[0]] + b))
-        else:
-            c = a
-        parsedLines.append(Insn(c))
-    return parsedLines
-
-def checkDecimal(n):
+def checkDecimal(n, hexadecimal=True):
     try:    
-        _ = int(n)
+        _ = int(n, 16) if hexadecimal else int(n)
         return True
     except ValueError:    
         return False
         
-#FIXME rename func name
-def isLocalLbl(label, ops):
-    return 'local' in label
-
-def isJmpMnem(mnem):
-    return mnem in ['jmp', 'jle']
-
 def checkRetValUsed(index, insns):
-    for insn in insns[index:]:
-        if len(insn.ops) > 1 and insn.ops[1] == 'eax' and isAssign(insn.mnem):
+    for ins in insns[index:]:
+        if len(ins.ops) > 1 and ins.ops[1] == 'eax' and insn.isAssign(ins.mnem):
             return True
-        elif insn.mnem in ['call']:
+        elif ins.mnem in ['call']:
             return False
-        elif len(insn.ops) > 0 and insn.ops[0] == 'eax' and isAssign(insn.mnem):
+        elif len(ins.ops) > 0 and ins.ops[0] == 'eax' and insn.isAssign(ins.mnem):
             return False
     return False
 
@@ -98,44 +27,40 @@ def restructureFunc(index, funcName, insns):
     return "%s(%s)" % (funcName, ', '.join(args))
 
 def emit(index, label, insns):
-    if isLocalLbl(label, insns[index].ops) or checkDecimal(label):
+    if insn.isLocalLbl(label, insns[index].ops) or checkDecimal(label):
         return label
     elif insns[index].mnem == 'nop':
         return emit(index-1, label, insns)
-    elif isJmpMnem(insns[index].mnem):
+    elif insn.isJmpMnem(insns[index].mnem):
         return emit(index-1, label, insns)
 
     for i in range(index, -1, -1):
-        insn = insns[i]
-        if isFuncMnem(insn.mnem):
-            if insn.mnem == 'call' and checkRetValUsed(i+1, insns):
-                return restructureFunc(i-1, insn.ops[0], insns)
+        ins = insns[i]
+        if insn.isFuncMnem(ins.mnem):
+            if ins.mnem == 'call' and checkRetValUsed(i+1, insns):
+                return restructureFunc(i-1, ins.ops[0], insns)
             else:
                 continue
-        elif not label in insn.ops:
+        elif not label in ins.ops:
             continue
         else:
-            op, isNumOp = toNumericOp(insn.mnem)
-            if insn.mnem == 'mov' or insn.mnem == 'movzx':
-                return emit(i-1, insn.ops[1], insns)
-            elif insn.mnem == 'idiv' or insn.mnem == 'div':
-                return "(%s / %s)" % (emit(i-1, 'eax', insns), emit(i-1, insn.ops[0], insns))
+            op, isNumOp = toNumericOp(ins.mnem)
+            if ins.mnem == 'mov' or ins.mnem == 'movzx':
+                return emit(i-1, ins.ops[1], insns)
+            elif ins.mnem == 'idiv' or ins.mnem == 'div':
+                return "(%s / %s)" % (emit(i-1, 'eax', insns), emit(i-1, ins.ops[0], insns))
             elif isNumOp:
-                return "(%s %s %s)" % (emit(i-1, insn.ops[0], insns), op, emit(i-1, insn.ops[1], insns))
-            elif toSetCond(insn.mnem) != None:
+                return "(%s %s %s)" % (emit(i-1, ins.ops[0], insns), op, emit(i-1, ins.ops[1], insns))
+            elif toSetCond(ins.mnem) != None:
                 index = i-1
                 while insns[index].mnem != 'cmp':
                     index -= 1
-                return "(%s %s %s)" % (emit(index-1, insns[index].ops[0], insns), toSetCond(insn.mnem), emit(index-1, insns[index].ops[1], insns))
+                return "(%s %s %s)" % (emit(index-1, insns[index].ops[0], insns), toSetCond(ins.mnem), emit(index-1, insns[index].ops[1], insns))
             else:
                 return 'unknow mnemonic'
 
     return "unknown"
 
-def inputCode(fileName):
-    f = open(fileName, 'r')
-    insns = list(map(lambda x: x.strip(), f.readlines()))
-    return insns
 
 def toJmpCond(mnem):
     if mnem == 'je':
@@ -180,11 +105,11 @@ def toNumericOp(mnem):
         return 'unknown', False
 
 def isLbl4Jmp(lbl):
-    return lbl[0] == '.' and lbl[-1] == ':'
+    return lbl[-1] == ':'
 
 def findLbl(label, insns):
-    for i, insn in enumerate(insns):
-        if insn.mnem == '%s:' % label:
+    for i, ins in enumerate(insns):
+        if ins.mnem == '%s:' % label:
             return i
     return None
 
@@ -308,10 +233,13 @@ def ctlSt(codeWithGoto):
     return codeWithGoto
 
 def main(func, argv):
-    insns = inputCode(argv[1])
-    parsedLines = parse(insns)
+    insns = parser.inputCode(argv[1])
+    insns = parser.parseObjdump(insns)
+    # print('\n'.join(list(map(str, insns))))
+
+    parsedLines = parser.parse(insns)
     # print('\n'.join(list(map(str, parsedLines))))
-    labeledAsm = asm2LowIr(parsedLines)
+    labeledAsm = insn.asm2LowIr(parsedLines)
     # print('\n'.join(list(map(str, labeledAsm))))
     # print("+++++++++++++++++++++")
     codeWithGoto = decLabeledAsm(func, labeledAsm)
@@ -322,5 +250,4 @@ def main(func, argv):
     
 if __name__ == '__main__':
     import sys
-    # print(sys.argv)
     main('main()', sys.argv)
