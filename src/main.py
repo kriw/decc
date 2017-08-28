@@ -182,24 +182,33 @@ def toNumericOp(mnem):
 def isLbl4Jmp(lbl):
     return lbl[0] == '.' and lbl[-1] == ':'
 
-def main(func, argv):
-    insns = inputCode(argv[1])
-    parsedLines = parse(insns)
-    # print('\n'.join(list(map(str, parsedLines))))
-    labeledAsm = asm2LowIr(parsedLines)
-    print('\n'.join(list(map(str, labeledAsm))))
+def findLbl(label, insns):
+    for i, insn in enumerate(insns):
+        if insn.mnem == '%s:' % label:
+            return i
+    return None
 
-    print("+++++++++++++++++++++")
-    print("%s {" % func)
+def findLblFromCode(label, code):
+    for i, line in enumerate(code):
+        if line == '%s:' % label:
+            return i
+    return None
+
+def decLabeledAsm(func, labeledAsm):
+    result = []
+    write = lambda x: result.append(x)
+    labelStack = [('', '')]
+
+    write("%s {" % func)
     for i, l in enumerate(labeledAsm):
         op, isNumOp = toNumericOp(l.mnem)
         if l.mnem == 'mov' and 'local' in l.ops[0]:
-            print("%s = %s;" % (l.ops[0], emit(i-1, l.ops[1], labeledAsm)))
+            write("%s = %s;" % (l.ops[0], emit(i-1, l.ops[1], labeledAsm)))
         elif isNumOp and 'local' in l.ops[0]:
             left = l.ops[0]
             right1 = emit(i-1, l.ops[0], labeledAsm)
             right2 = emit(i-1, l.ops[1], labeledAsm)
-            print("%s = %s %s %s;" % (left, right1, op, right2))
+            write("%s = %s %s %s;" % (left, right1, op, right2))
         elif l.mnem == 'ret':
             ret = emit(i-1, 'eax', labeledAsm)
             for j in range(i-1, -1, -1):
@@ -207,29 +216,80 @@ def main(func, argv):
                 if labeledAsm[j].mnem == 'mov' and labeledAsm[j].ops[0] == 'eax':
                     ret = emit(j-1, labeledAsm[j].ops[1], labeledAsm)
                     break
-            print("return %s;" % ret)
+            write("return %s;" % ret)
         elif isLbl4Jmp(l.mnem):
-            print(l.mnem)
+            flg = True
+            for i, (lbl, s) in enumerate(labelStack[::-1]):
+                if l.mnem == lbl:
+                    flg = False
+                    write(s)
+                    labelStack = labelStack[:i] + labelStack[i+1:]
+            write(l.mnem)
         elif toJmpCond(l.mnem) != None:
             operator = toJmpCond(l.mnem)
+            label = l.ops[0]
+            lblIndex = findLbl(label, labeledAsm)
             ret = ''
+
+            #if statement
+            if i < lblIndex:
+                index = i-1
+                while index >= 0 and labeledAsm[index].mnem != 'cmp':
+                    index -= 1
+                if index >= 0:
+                    ret = "if(%s %s %s) goto %s;" % (emit(index-1, labeledAsm[index].ops[0], labeledAsm), toJmpCond(l.mnem), emit(index-1, labeledAsm[index].ops[1], labeledAsm), l.ops[0])
+                    labelStack.append((label ,'}'))
+
             if operator == 'jmp':
                 ret = 'goto %s' % l.ops[0]
-            else:
-                index = i-1
-                while labeledAsm[index].mnem != 'cmp':
-                    index -= 1
-                ret = "if(%s %s %s) goto %s;" % (emit(index-1, labeledAsm[index].ops[0], labeledAsm), toJmpCond(l.mnem), emit(index-1, labeledAsm[index].ops[1], labeledAsm), l.ops[0])
-            print(ret)
+            write(ret)
         elif l.mnem == 'call' and not checkRetValUsed(i+1, labeledAsm):
             ret = restructureFunc(i-1, l.ops[0], labeledAsm)
-            print(ret)
+            write(ret + ';')
         # else:
-        #     print('else: ', l.mnem)
-    print("}")
+        #     write('else: ', l.mnem)
+    write("}")
+    return result
+
+def getLabelFromIf(line):
+    patternIf = r'(if\(.*\)) goto (.*);'
+    label = re.sub(patternIf, r'\2', line);
+    statement = re.sub(patternIf, r'\1 {', line)
+    return label, statement
+
+def ctlSt(codeWithGoto):
+    replaceLabels = []
+    for i, line in enumerate(codeWithGoto):
+        lbl, statement = getLabelFromIf(line)
+        if lbl == None or statement == None:
+            continue
+        lblIndex = findLblFromCode(lbl, codeWithGoto)
+        if lblIndex == None:
+            continue
+        codeWithGoto[i] = statement
+        replaceLabels.append(lblIndex)
+
+    for i in replaceLabels:
+        if '}' in codeWithGoto[i]:
+            codeWithGoto[i] += '}'
+        else:
+            codeWithGoto[i] = '}'
+    return codeWithGoto
 
 
+def main(func, argv):
+    insns = inputCode(argv[1])
+    parsedLines = parse(insns)
+    # print('\n'.join(list(map(str, parsedLines))))
+    labeledAsm = asm2LowIr(parsedLines)
+    # print('\n'.join(list(map(str, labeledAsm))))
+    # print("+++++++++++++++++++++")
+    codeWithGoto = decLabeledAsm(func, labeledAsm)
+    # print('\n'.join(codeWithGoto))
+    code = ctlSt(codeWithGoto)
+    print('\n'.join(code))
+    
 if __name__ == '__main__':
     import sys
-    print(sys.argv)
+    # print(sys.argv)
     main('main()', sys.argv)
