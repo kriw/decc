@@ -231,23 +231,18 @@ def decLabeledAsm(func, labeledAsm):
             lblIndex = findLbl(label, labeledAsm)
             ret = ''
 
-            #if statement
-            if i < lblIndex:
-                index = i-1
-                while index >= 0 and labeledAsm[index].mnem != 'cmp':
-                    index -= 1
-                if index >= 0:
-                    ret = "if(%s %s %s) goto %s;" % (emit(index-1, labeledAsm[index].ops[0], labeledAsm), toJmpCond(l.mnem), emit(index-1, labeledAsm[index].ops[1], labeledAsm), l.ops[0])
-                    labelStack.append((label ,'}'))
-
-            if operator == 'jmp':
-                ret = 'goto %s' % l.ops[0]
+            index = i-1
+            while index >= 0 and labeledAsm[index].mnem != 'cmp':
+                index -= 1
+            if index >= 0:
+                ret = "if(%s %s %s) goto %s;" % (emit(index-1, labeledAsm[index].ops[0], labeledAsm), toJmpCond(l.mnem), emit(index-1, labeledAsm[index].ops[1], labeledAsm), l.ops[0])
+                labelStack.append((label ,'}'))
+            elif operator == 'jmp':
+                ret = 'goto %s;' % l.ops[0]
             write(ret)
         elif l.mnem == 'call' and not checkRetValUsed(i+1, labeledAsm):
             ret = restructureFunc(i-1, l.ops[0], labeledAsm)
             write(ret + ';')
-        # else:
-        #     write('else: ', l.mnem)
     write("}")
     return result
 
@@ -257,14 +252,19 @@ def getLabelFromIf(line):
     statement = re.sub(patternIf, r'\1 {', line)
     return label, statement
 
+def getLabelFromGoto(line):
+    label = re.sub(r'goto (.*);', r'\1', line);
+    return label
+
 def ctlSt(codeWithGoto):
+    #if statement
     replaceLabels = []
     for i, line in enumerate(codeWithGoto):
         lbl, statement = getLabelFromIf(line)
-        if lbl == None or statement == None:
+        if lbl == None or statement == line:
             continue
         lblIndex = findLblFromCode(lbl, codeWithGoto)
-        if lblIndex == None:
+        if lblIndex == None or i >= lblIndex:
             continue
         codeWithGoto[i] = statement
         replaceLabels.append(lblIndex)
@@ -274,8 +274,38 @@ def ctlSt(codeWithGoto):
             codeWithGoto[i] += '}'
         else:
             codeWithGoto[i] = '}'
-    return codeWithGoto
 
+    #for statement
+    replaceLabels = []
+    replaceList = []
+    for i, line in enumerate(codeWithGoto):
+        lbl, statement = getLabelFromIf(line)
+        if lbl == None or statement == None:
+            continue
+        lblIndex = findLblFromCode(lbl, codeWithGoto)
+        if lblIndex == None or i <= lblIndex:
+            continue
+        gotoLbl = getLabelFromGoto(codeWithGoto[lblIndex-1])
+        gotoLblIndex = findLblFromCode(gotoLbl, codeWithGoto)
+        if gotoLblIndex == None or lblIndex-1 >= gotoLblIndex:
+            continue
+        replaceList.append((lblIndex-1, i, lblIndex, gotoLblIndex))
+
+    toFor = lambda x, y, z: "for(%s; %s; %s) {" % (x, y, z)
+    for startIndex, endIndex, erase1, erase2 in replaceList:
+        init = codeWithGoto[startIndex - 1].replace(';', '')
+        end = codeWithGoto[endIndex - 2].replace(';', '')
+        prop = re.sub(r'if\((.*)\) .*', r'\1', codeWithGoto[endIndex])
+
+        codeWithGoto[startIndex - 1] = toFor(init, prop, end)
+        codeWithGoto[startIndex] = ''
+        codeWithGoto[endIndex - 2] = ''
+        codeWithGoto[endIndex] = '}'
+
+        codeWithGoto[erase1] = ''
+        codeWithGoto[erase2] = ''
+
+    return codeWithGoto
 
 def main(func, argv):
     insns = inputCode(argv[1])
@@ -287,6 +317,7 @@ def main(func, argv):
     codeWithGoto = decLabeledAsm(func, labeledAsm)
     # print('\n'.join(codeWithGoto))
     code = ctlSt(codeWithGoto)
+    code = list(filter(lambda x: x != '', code))
     print('\n'.join(code))
     
 if __name__ == '__main__':
