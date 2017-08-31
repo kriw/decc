@@ -1,6 +1,7 @@
 import re
 import insn
 import parser
+import parseObjdump
 
 def checkDecimal(n, hexadecimal=True):
     try:    
@@ -27,7 +28,7 @@ def restructureFunc(index, funcName, insns):
     return "%s(%s)" % (funcName, ', '.join(args))
 
 def emit(index, label, insns):
-    if insn.isLocalLbl(label, insns[index].ops) or checkDecimal(label):
+    if insn.isVariableLbl(label, insns[index].ops) or checkDecimal(label):
         return label
     elif insns[index].mnem == 'nop':
         return emit(index-1, label, insns)
@@ -57,9 +58,9 @@ def emit(index, label, insns):
                     index -= 1
                 return "(%s %s %s)" % (emit(index-1, insns[index].ops[0], insns), toSetCond(ins.mnem), emit(index-1, insns[index].ops[1], insns))
             else:
-                return 'unknow mnemonic'
+                return None
 
-    return "unknown"
+    return None
 
 
 def toJmpCond(mnem):
@@ -136,11 +137,12 @@ def decLabeledAsm(func, labeledAsm):
             write("%s = %s %s %s;" % (left, right1, op, right2))
         elif l.mnem == 'ret':
             ret = emit(i-1, 'eax', labeledAsm)
-            for j in range(i-1, -1, -1):
-                ret = ''
-                if labeledAsm[j].mnem == 'mov' and labeledAsm[j].ops[0] == 'eax':
-                    ret = emit(j-1, labeledAsm[j].ops[1], labeledAsm)
-                    break
+            if ret == None:
+                for j in range(i-1, -1, -1):
+                    ret = ''
+                    if labeledAsm[j].mnem == 'mov' and labeledAsm[j].ops[0] == 'eax':
+                        ret = emit(j-1, labeledAsm[j].ops[1], labeledAsm)
+                        break
             write("return %s;" % ret)
         elif isLbl4Jmp(l.mnem):
             flg = True
@@ -232,22 +234,45 @@ def ctlSt(codeWithGoto):
 
     return codeWithGoto
 
-def main(func, argv):
-    insns = parser.inputCode(argv[1])
-    insns = parser.parseObjdump(insns)
-    # print('\n'.join(list(map(str, insns))))
+def main(argv):
+    objdump = parser.inputCode(argv[1])
+    funcs, addrs = parseObjdump.parseObjdumpOutput(objdump)
+    ignores = [
+            '_init',
+            '.plt',
+            '__libc_start_main@plt',
+            '.plt.got',
+            '_start',
+            '__x86.get_pc_thunk.bx',
+            'deregister_tm_clones',
+            'register_tm_clones',
+            '__do_global_dtors_aux',
+            'frame_dummy',
+            '__x86.get_pc_thunk.dx',
+            '__x86.get_pc_thunk.ax',
+            '__libc_csu_init',
+            '__libc_csu_fini',
+            '__x86.get_pc_thunk.si',
+            '_fini',
+            ]
+    parser.initFuncLabel(addrs)
+    for funcName in funcs:
+        if funcName in ignores:
+            continue
+        insns = parser.parseObjdump(funcs[funcName])
+        # print('\n'.join(list(map(str, insns))))
 
-    parsedLines = parser.parse(insns)
-    # print('\n'.join(list(map(str, parsedLines))))
-    labeledAsm = insn.asm2LowIr(parsedLines)
-    # print('\n'.join(list(map(str, labeledAsm))))
-    # print("+++++++++++++++++++++")
-    codeWithGoto = decLabeledAsm(func, labeledAsm)
-    # print('\n'.join(codeWithGoto))
-    code = ctlSt(codeWithGoto)
-    code = list(filter(lambda x: x != '', code))
-    print('\n'.join(code))
+        parsedLines = parser.parse(insns)
+        # print('\n'.join(list(map(str, parsedLines))))
+        labeledAsm = insn.asm2LowIr(parsedLines)
+        # print('\n'.join(list(map(str, labeledAsm))))
+        # print("+++++++++++++++++++++")
+        codeWithGoto = decLabeledAsm(funcName, labeledAsm)
+        # print('\n'.join(codeWithGoto))
+        code = ctlSt(codeWithGoto)
+        code = list(filter(lambda x: x != '', code))
+        print('\n'.join(code))
     
 if __name__ == '__main__':
     import sys
-    main('main()', sys.argv)
+    main(sys.argv)

@@ -2,6 +2,27 @@ import insn
 import re
 import copy
 
+genLabel = None
+def initFuncLabel(addrs):
+    global genLabel
+    n = -1
+    mem = {}
+    for funcName in addrs:
+        addr = addrs[funcName]
+        if str(type(addr)) == "<class 'str'>":
+            addr = int(addr, 16)
+        mem[addr] = funcName
+
+    def get(addr):
+        nonlocal n
+        n += 1
+        if str(type(addr)) == "<class 'str'>":
+            addr = int(addr, 16)
+        if not addr in mem:
+            mem[addr] = 'L%d' % n
+        return mem[addr]
+    genLabel = get
+
 def inputCode(fileName):
     f = open(fileName, 'r')
     insns = list(map(lambda x: x.strip(), f.readlines()))
@@ -39,19 +60,6 @@ def parseObjdump(lines):
         else:
             insns[i] = '%s\t%s' % (mnem, ' '.join(ops))
 
-    def _genLabel():
-        n = -1
-        mem = {}
-        def get(addr):
-            nonlocal n
-            n += 1
-            if not addr in mem:
-                mem[addr] = 'L%d' % n
-            return mem[addr]
-        return get
-    genLabel = _genLabel()
-
-    
     _insns = copy.deepcopy(insns)
     insertList = []
     for i, (addr, ins) in enumerate(zip(addrs, _insns)):

@@ -12,6 +12,12 @@ class Insn:
 def isLocalLbl(label, ops):
     return 'local' in label
 
+def isArgLbl(label, ops):
+    return 'arg' in label
+
+def isVariableLbl(label, ops):
+    return isLocalLbl(label, ops) or isArgLbl(label, ops)
+
 def isJmpMnem(mnem):
     return mnem in ['jmp', 'je', 'jne', 'jge', 'jg', 'jle', 'jl']
 
@@ -40,9 +46,9 @@ def convRef(s):
         reg, n = replacedStr.split(',')
         q, r = abs(int(n, 16)) >> 2, abs(int(n, 16)) & 3
         if reg == 'ebp' and int(n, 16) < 0:
-            return 'local_%d_%d' % (q, r)
+            return 'local_%d_%d' % (q-1, r)
         elif reg == 'ebp' and int(n, 16) > 0:
-            return 'arg_%d_%d' % (q, r)
+            return 'arg_%d_%d' % (q-2, r)
         else:
             return '*(%s + (%s)' % (reg, n)
 
