@@ -28,7 +28,7 @@ def restructureFunc(index, funcName, insns):
     return "%s(%s)" % (funcName, ', '.join(args))
 
 def emit(index, label, insns):
-    if insn.isVariableLbl(label, insns[index].ops) or checkDecimal(label):
+    if insn.isVariableLbl(label) or checkDecimal(label):
         return label
     elif insns[index].mnem == 'nop':
         return emit(index-1, label, insns)
@@ -124,13 +124,18 @@ def decLabeledAsm(func, labeledAsm):
     result = []
     write = lambda x: result.append(x)
     labelStack = [('', '')]
+    args = set()
+    for l in labeledAsm:
+        for op in l.ops:
+            if insn.isArgLbl(op):
+                args.add(op)
 
-    write("%s {" % func)
+    write("%s(%s) {" % (func, ', '.join(args)))
     for i, l in enumerate(labeledAsm):
         op, isNumOp = toNumericOp(l.mnem)
-        if l.mnem == 'mov' and 'local' in l.ops[0]:
+        if l.mnem == 'mov' and insn.isVariableLbl(l.ops[0]):
             write("%s = %s;" % (l.ops[0], emit(i-1, l.ops[1], labeledAsm)))
-        elif isNumOp and 'local' in l.ops[0]:
+        elif isNumOp and insn.isVariableLbl(l.ops[0]):
             left = l.ops[0]
             right1 = emit(i-1, l.ops[0], labeledAsm)
             right2 = emit(i-1, l.ops[1], labeledAsm)
