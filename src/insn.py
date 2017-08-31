@@ -9,14 +9,14 @@ class Insn:
                 + ', '.join(self.ops)
 
 #FIXME rename func name
-def isLocalLbl(label, ops):
+def isLocalLbl(label):
     return 'local' in label
 
-def isArgLbl(label, ops):
+def isArgLbl(label):
     return 'arg' in label
 
-def isVariableLbl(label, ops):
-    return isLocalLbl(label, ops) or isArgLbl(label, ops)
+def isVariableLbl(label):
+    return isLocalLbl(label) or isArgLbl(label)
 
 def isJmpMnem(mnem):
     return mnem in ['jmp', 'je', 'jne', 'jge', 'jg', 'jle', 'jl']
