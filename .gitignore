@@ -1,6 +1,12 @@
+.omakedb
+.omakedb.lock
 *.pyc
 *.swp
+*.omc
 *.cmi
+*.cmt
 *.cmo
+*.cmx
+*.o
 __pycache__
-
+bin/
