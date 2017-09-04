@@ -10,11 +10,11 @@ let load_file f =
   close_in ic;
   Str.split (Str.regexp "\n") (Bytes.to_string s)
 
-let header_regex = Str.regexp "\([0-9a-fA-F]+\) <\(.+\)>:"
+let header_regex = Str.regexp "\\([0-9a-fA-F]+\\) <\\(.+\\)>:"
 
 let is_header line = Str.string_match header_regex line 0
 
-let extract_header line = Str.global_replace header_regex "\1,\2" line
+let extract_header line = Str.global_replace header_regex "\\1,\\2" line
 
 let bool_to_string = function
   | true -> "true"
