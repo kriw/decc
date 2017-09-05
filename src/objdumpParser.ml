@@ -55,8 +55,3 @@ let parse lines =
     ) filtered in
   let addrs, insns = Util.unzip tmp in
   parse_insns insns, addrs
-
-(* let _ =  *)
-(*   let lines = load_file Sys.argv.(1) in *)
-(*   let codes, addrs = parse_objdump lines "" StringMap.empty StringMap.empty in *)
-(*   StringMap.iter (fun k v -> print_endline k; print_list v) codes *)
