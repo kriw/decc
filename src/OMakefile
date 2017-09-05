@@ -5,7 +5,9 @@ OCAMLPACKS[] =
 
 FILES[] =
 	objdumpParser
+	util
 	insn
+	main
 
 PROGRAM = ../bin/decc
 

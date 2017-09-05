@@ -34,12 +34,29 @@ let rec parse_objdump lines funcName codes addrs =
     let addr = List.nth addrFunc 0 in
     let func = List.nth addrFunc 1 in
     parse_objdump tail func codes (StringMap.add func addr addrs)
+  | head :: tail when String.equal funcName "" -> 
+    parse_objdump tail funcName codes addrs
   | head :: tail -> 
     parse_objdump tail funcName (append funcName head codes) addrs
 
-let print_list = List.iter (fun s -> print_endline s)
+let parse_insns insns = 
+  let parse_insn insn = 
+    let mnem, ops = match Util.split " " insn with
+      | [] -> "", []
+      | x::xs -> Util.strip x, Util.split "," (Util.strip (String.concat " " xs));in
+    mnem, ops; in
+  Util.unzip (List.map parse_insn insns)
 
-let _ = 
-  let lines = load_file Sys.argv.(1) in
-  let codes, addrs = parse_objdump lines "" StringMap.empty StringMap.empty in
-  StringMap.iter (fun k v -> print_endline k; print_list v) codes
+let parse lines =
+  let filtered = List.filter (fun x -> List.length (Util.split "\t" x) > 2) lines in
+  let tmp = List.map (fun x -> 
+      let s = Util.split "\t" x in
+      (List.nth s 0), (List.nth s 2)
+    ) filtered in
+  let addrs, insns = Util.unzip tmp in
+  parse_insns insns, addrs
+
+(* let _ =  *)
+(*   let lines = load_file Sys.argv.(1) in *)
+(*   let codes, addrs = parse_objdump lines "" StringMap.empty StringMap.empty in *)
+(*   StringMap.iter (fun k v -> print_endline k; print_list v) codes *)

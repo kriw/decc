@@ -4,6 +4,8 @@ type addr = int32
 type label = addr
 type mem = 
   | Imm of addr
+  | Local of reg * int32
+  | Arg of reg * int32
   | Direct of reg * int32   (*  reg + n  *)
   | Indirect of reg * int32 (* [reg + n] *)
 type expr =
@@ -25,3 +27,4 @@ type insn =
   | Jmp of label * cond
   | Call of label
   | Ret
+
