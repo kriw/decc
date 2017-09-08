@@ -6,6 +6,6 @@ let _ =
   StringMap.iter (fun k v -> 
       let insns, addrs = parse v in
       let mnems, ops = insns in
-      List.iter (fun x -> Util.print_list x) ops) codes
-(* Util.print_list mnems) codes *)
-
+      let asms = List.map (fun (x, y) -> Asm.to_asm x y) (List.combine mnems ops) in
+      print_endline k; List.iter (fun asm -> print_endline (Asm.to_string asm)) asms
+    ) codes

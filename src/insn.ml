@@ -82,6 +82,8 @@ let to_operand op =
   | _op when is_reg _op -> Reg (to_reg _op)
   | _ -> Mem (to_mem op)
 
+let to_string insn = ["unchi"]
+
 let to_insn mnem ops =
   match mnem with
   | "call" -> Call (to_label (List.nth ops 0))

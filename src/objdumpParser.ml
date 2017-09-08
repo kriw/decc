@@ -14,8 +14,6 @@ let header_regex = Str.regexp "\\([0-9a-fA-F]+\\) <\\(.+\\)>:"
 
 let is_header line = Str.string_match header_regex line 0
 
-let extract_header line = Str.global_replace header_regex "\\1,\\2" line
-
 let bool_to_string = function
   | true -> "true"
   | false -> "false"
@@ -30,6 +28,7 @@ let rec parse_objdump lines funcName codes addrs =
   match lines with
   | [] -> (codes, addrs)
   | head :: tail when is_header head -> 
+    let extract_header line = Str.global_replace header_regex "\\1,\\2" line in
     let addrFunc = Str.split (Str.regexp_string ",") (extract_header head) in
     let addr = List.nth addrFunc 0 in
     let func = List.nth addrFunc 1 in
