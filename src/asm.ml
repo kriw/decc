@@ -56,11 +56,22 @@ let to_arg s = Str.global_replace arg_ptn "\\1" s
 
 let to_operand op =
   match op with
+  (* TODO *)
+  (* | op when is_call op -> Label  *)
   | op when is_imm op -> Imm (Int32.of_string op)
   | op when is_reg op -> Reg (to_reg op)
   | op when is_local op -> Local (to_local op)
   | op when is_arg op -> Arg (to_arg op)
   | _ -> print_endline "fail"; print_endline op; Unknown
+
+
+(* TODO *)
+(* let call_regex = Str.regexp "\\([0-9a-fA-F]+\\) <\\(.*\\)>" *)
+(* let is_call op = Str.string_match call_regex op 0 *)
+(* let parse_call_op op = *)
+(*   let addr = Str.global_replace call_regex "0x\\1" op in *)
+(*   let label = Str.global_replace call_regex "\\2" op in *)
+(*   label, addr *)
 
 let to_asm mnem ops =
   let first l = to_operand (List.nth l 0) in
@@ -74,6 +85,7 @@ let to_asm mnem ops =
   | "div" | "idiv" -> Div (first ops)
   | "jmp" -> Jmp (first ops)
   | "call" -> Call (first ops)
+  | "ret" -> Ret
   | _ -> Unknown
 
 let reg_to_string reg =
@@ -88,9 +100,9 @@ let reg_to_string reg =
 
 let op_to_string op =
   match op with
-  | Imm n -> Int32.to_string n
-  | Local lbl -> lbl
-  | Arg lbl -> lbl
+  | Imm n -> sprintf "0x%x" (Int32.to_int n)
+  | Local lbl -> sprintf "%s_%s" "local" lbl
+  | Arg lbl -> sprintf "%s_%s" "arg" lbl
   | Reg reg -> reg_to_string reg
   | Unknown -> "unknown"
 
@@ -113,5 +125,3 @@ let to_string asm =
     | Ret -> "ret", ""
     | Unknown -> "unknown", "" in
   Printf.sprintf "%s %s" mnem_str op_str
-
-
