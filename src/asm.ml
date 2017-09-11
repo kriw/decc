@@ -7,6 +7,7 @@ type operand =
   | Local of string
   | Arg of string
   | Reg of reg
+  | Label of int32 * string
   | Unknown
 
 type asm =
@@ -23,6 +24,9 @@ type asm =
   | Setg of operand
   | And of operand * operand
   | Or of operand * operand
+  | Je of operand
+  | Jge of operand
+  | Jle of operand
   | Jmp of operand
   | Call of operand
   | Ret
@@ -56,6 +60,10 @@ let is_imm s =
   let imm_pattern = Str.regexp "0x[0-9a-fA-F]+" in
   Str.string_match imm_pattern s 0
 
+let lbl_ptn = Str.regexp "\\([0-9a-fA-F]+\\) <\\(.*\\)>"
+let is_label s = Str.string_match lbl_ptn s 0
+let to_label s = Str.global_replace lbl_ptn "\\1,\\2" s
+
 let loc_ptn =
   Str.regexp "DWORD PTR \\[ebp-\\(0x[0-9a-fA-F]+\\)\\]"
 let is_local s = Str.string_match loc_ptn s 0
@@ -74,6 +82,11 @@ let to_operand op =
   | op when is_reg op -> Reg (to_reg op)
   | op when is_local op -> Local (to_local op)
   | op when is_arg op -> Arg (to_arg op)
+  | op when is_label op ->
+    let addr, label = 
+      let tmp = Str.split (Str.regexp ",") (to_label op) in
+      Int32.of_string (List.nth tmp 0), List.nth tmp 1 in
+    Label (addr, label)
   | _ -> print_endline "fail"; print_endline op; Unknown
 
 (* TODO *)
@@ -104,6 +117,9 @@ let to_asm mnem ops =
   | "and" -> And ((first ops), (second ops))
   | "or" -> Or ((first ops), (second ops))
   | "cmp" -> Cmp ((first ops), (second ops))
+  | "je" -> Je  (first ops)
+  | "jge" -> Jge  (first ops)
+  | "jle" -> Jle  (first ops)
   | "jmp" -> Jmp (first ops)
   | "call" -> Call (first ops)
   | "ret" -> Ret
@@ -129,6 +145,7 @@ let op_to_string op =
   | Local lbl -> sprintf "%s_%s" "local" lbl
   | Arg lbl -> sprintf "%s_%s" "arg" lbl
   | Reg reg -> reg_to_string reg
+  | Label (addr, lbl) -> sprintf "%x <%s>" (Int32.to_int addr) lbl
   | Unknown -> "unknown"
 
 
@@ -151,6 +168,9 @@ let to_string asm =
     | Setl op -> "setl", of_op op
     | And (op1, op2) -> "and", concat (of_op op1) (of_op op2)
     | Or (op1, op2) -> "or", concat (of_op op1) (of_op op2)
+    | Je op -> "je", of_op op
+    | Jge op -> "jge", of_op op
+    | Jle op -> "jle", of_op op
     | Jmp op -> "jmp", of_op op
     | Call op -> "call", of_op op
     | Ret -> "ret", ""
