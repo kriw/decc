@@ -1,5 +1,6 @@
 open Printf
-type reg = Eax | Ebx | Ecx | Edx | Edi | Esi | Else
+type reg = Eax | Ebx | Ecx | Edx | Edi | Esi 
+         | Al | Bl | Cl | Dl | Else
 
 type operand =
   | Imm of int32
@@ -17,6 +18,11 @@ type asm =
   | Mul of operand * operand
   | Div of operand
   | Cmp of operand * operand
+  | Sete of operand
+  | Setl of operand
+  | Setg of operand
+  | And of operand * operand
+  | Or of operand * operand
   | Jmp of operand
   | Call of operand
   | Ret
@@ -26,9 +32,11 @@ let is_reg s =
   let reg_pattern1 = Str.regexp "e[abcd]x" in
   let reg_pattern2 = Str.regexp "e[ds]i" in
   let reg_pattern3 = Str.regexp "e[sbi]p" in
+  let reg_pattern4 = Str.regexp "[abcd]l" in
   (Str.string_match  reg_pattern1 s 0) ||
   (Str.string_match  reg_pattern2 s 0) ||
-  (Str.string_match  reg_pattern3 s 0)
+  (Str.string_match  reg_pattern3 s 0) ||
+  (Str.string_match  reg_pattern4 s 0)
 
 let to_reg str =
   match str with
@@ -38,6 +46,10 @@ let to_reg str =
   | "edx" -> Edx
   | "edi" -> Edi
   | "esi" -> Esi
+  | "al" -> Al
+  | "bl" -> Bl
+  | "cl" -> Cl
+  | "dl" -> Dl
   | _ -> Else
 
 let is_imm s =
@@ -64,7 +76,6 @@ let to_operand op =
   | op when is_arg op -> Arg (to_arg op)
   | _ -> print_endline "fail"; print_endline op; Unknown
 
-
 (* TODO *)
 (* let call_regex = Str.regexp "\\([0-9a-fA-F]+\\) <\\(.*\\)>" *)
 (* let is_call op = Str.string_match call_regex op 0 *)
@@ -73,16 +84,26 @@ let to_operand op =
 (*   let label = Str.global_replace call_regex "\\2" op in *)
 (*   label, addr *)
 
+let match_set_eflag mnem =
+  let pattern = Str.regexp "set[egl]" in
+  Str.string_match pattern mnem 0
+
 let to_asm mnem ops =
   let first l = to_operand (List.nth l 0) in
   let second l = to_operand (List.nth l 1) in
   match mnem with
   | "nop" -> Nop
-  | "mov" -> Mov ((first ops), (second ops))
+  | "mov" | "movzx" -> Mov ((first ops), (second ops))
   | "add" -> Add ((first ops), (second ops))
   | "sub" -> Sub ((first ops), (second ops)) 
   | "mul" | "imul" -> Mul ((first ops), (second ops))
   | "div" | "idiv" -> Div (first ops)
+  | "sete" -> Sete (first ops)
+  | "setg" -> Setg (first ops)
+  | "setl" -> Setl (first ops)
+  | "and" -> And ((first ops), (second ops))
+  | "or" -> Or ((first ops), (second ops))
+  | "cmp" -> Cmp ((first ops), (second ops))
   | "jmp" -> Jmp (first ops)
   | "call" -> Call (first ops)
   | "ret" -> Ret
@@ -96,6 +117,10 @@ let reg_to_string reg =
   | Edx -> "edx"
   | Edi -> "edi"
   | Esi -> "esi"
+  | Al -> "al"
+  | Bl -> "bl"
+  | Cl -> "cl"
+  | Dl -> "dl"
   | Else -> "else"
 
 let op_to_string op =
@@ -120,6 +145,12 @@ let to_string asm =
     | Mul (op1, op2) -> "mul", concat (of_op op1) (of_op op2)
     | Div op -> "div", of_op op
     | Cmp (op1, op2) -> "cmp", concat (of_op op1) (of_op op2)
+    (* FIXME *)
+    | Sete op -> "sete", of_op op
+    | Setg op -> "setg", of_op op
+    | Setl op -> "setl", of_op op
+    | And (op1, op2) -> "and", concat (of_op op1) (of_op op2)
+    | Or (op1, op2) -> "or", concat (of_op op1) (of_op op2)
     | Jmp op -> "jmp", of_op op
     | Call op -> "call", of_op op
     | Ret -> "ret", ""
