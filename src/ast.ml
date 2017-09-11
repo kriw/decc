@@ -7,6 +7,7 @@ type ast =
   | Div of ast * ast
   | Assign of ast * ast
   | Je of ast * ast
+  | Jne of ast * ast
   | Jge of ast * ast
   | Jle of ast * ast
   | Jmp of ast
@@ -19,6 +20,7 @@ type ast =
   | Below of ast
   | And of ast * ast
   | Or of ast * ast
+  | Label of string
   | Value of Asm.operand
   | Emp
 
@@ -69,7 +71,9 @@ let first_op line =
 let is_jmp_mnem line =
   match line with
   | Asm.Jmp _ -> true
+  | Asm.Jne _ -> true
   | Asm.Jle _ -> true
+  | Asm.Jge _ -> true
   | Asm.Call _ -> true
   | Asm.Ret  -> true
   | _ -> false
@@ -139,10 +143,17 @@ let emit_ast line =
       a
     | Asm.Jle op ->
       ref (Jle (!State.eflags, !(state_ast op)))
+    | Asm.Jge op ->
+      ref (Jge (!State.eflags, !(state_ast op)))
+    | Asm.Jne op ->
+      ref (Jne (!State.eflags, !(state_ast op)))
     | Asm.Jmp op ->
       ref (Jmp !(state_ast op))
     | Asm.Call op ->
-      ref (Call !(state_ast op))
+      let a = ref (Call !(state_ast op)) in
+      let _ = State.eax := !a in
+      a
+    | Asm.Label lbl -> ref (Label (Asm.op_to_string lbl))
     | Asm.Ret ->
       ref (Ret !State.eax)
     | _ -> ref Emp in
@@ -156,6 +167,7 @@ let rec to_string ast =
   | Div (ast1, ast2) -> sprintf "(%s / %s)" (to_string ast1) (to_string ast2)
   | Assign (ast1, ast2) -> sprintf "%s = %s" (to_string ast1) (to_string ast2)
   | Je (Cond (ast1_1, ast1_2), ast2) -> sprintf "if(%s != %s) goto %s" (to_string ast1_1) (to_string ast1_2) (to_string ast2)
+  | Jne (Cond (ast1_1, ast1_2), ast2) -> sprintf "if(%s == %s) goto %s" (to_string ast1_1) (to_string ast1_2) (to_string ast2)
   | Jge (Cond (ast1_1, ast1_2), ast2) -> sprintf "if(%s < %s) goto %s" (to_string ast1_1) (to_string ast1_2) (to_string ast2)
   | Jle (Cond (ast1_1, ast1_2), ast2) -> sprintf "if(%s > %s) goto %s" (to_string ast1_1) (to_string ast1_2) (to_string ast2)
   | Jmp ast -> "" (* TODO *)
@@ -168,6 +180,7 @@ let rec to_string ast =
   | Ret ast -> sprintf "return %s" (to_string ast)
   | Ref ast -> sprintf "&(%s)"  (to_string ast)
   | Value op -> Asm.op_to_string op
+  | Label lbl -> sprintf "%s:" lbl
   | Emp -> "emp"
   | _ -> "unknown"
 
@@ -175,6 +188,11 @@ let rec to_string ast =
 let skip line =
   match line with
   | Asm.Div _ -> true
+  | _ -> false
+
+let is_label ast = 
+  match ast with
+  | Asm.Label _ -> true
   | _ -> false
 
 let to_ast asms = 
@@ -186,7 +204,7 @@ let to_ast asms =
       match x with
       (* FIXME better solution *)
       | x when skip x -> _to_ast xs ast
-      | x when (is_local_from_op1 x) || (is_jmp_mnem x) -> 
+      | x when (is_local_from_op1 x) || (is_jmp_mnem x) || (is_label x) -> 
         _to_ast xs ((!_ast)::ast)
       | _ -> _to_ast xs ast in
   _to_ast asms []

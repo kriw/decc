@@ -1,4 +1,7 @@
 open Printf
+(* FIXME use map<int> *)
+module LabelMap = Map.Make(String);;
+
 type reg = Eax | Ebx | Ecx | Edx | Edi | Esi 
          | Al | Bl | Cl | Dl | Else
 
@@ -7,7 +10,7 @@ type operand =
   | Local of string
   | Arg of string
   | Reg of reg
-  | Label of int32 * string
+  | Label of string
   | Unknown
 
 type asm =
@@ -25,11 +28,13 @@ type asm =
   | And of operand * operand
   | Or of operand * operand
   | Je of operand
+  | Jne of operand
   | Jge of operand
   | Jle of operand
   | Jmp of operand
   | Call of operand
   | Ret
+  | Label of operand
   | Unknown
 
 let is_reg s =
@@ -83,10 +88,8 @@ let to_operand op =
   | op when is_local op -> Local (to_local op)
   | op when is_arg op -> Arg (to_arg op)
   | op when is_label op ->
-    let addr, label = 
-      let tmp = Str.split (Str.regexp ",") (to_label op) in
-      Int32.of_string (List.nth tmp 0), List.nth tmp 1 in
-    Label (addr, label)
+    let label = Str.global_replace (Str.regexp "\\(.*\\) <.*>") "\\1" op in
+    Label label
   | _ -> print_endline "fail"; print_endline op; Unknown
 
 (* TODO *)
@@ -118,6 +121,7 @@ let to_asm mnem ops =
   | "or" -> Or ((first ops), (second ops))
   | "cmp" -> Cmp ((first ops), (second ops))
   | "je" -> Je  (first ops)
+  | "jne" -> Jne (first ops)
   | "jge" -> Jge  (first ops)
   | "jle" -> Jle  (first ops)
   | "jmp" -> Jmp (first ops)
@@ -145,9 +149,8 @@ let op_to_string op =
   | Local lbl -> sprintf "%s_%s" "local" lbl
   | Arg lbl -> sprintf "%s_%s" "arg" lbl
   | Reg reg -> reg_to_string reg
-  | Label (addr, lbl) -> sprintf "%x <%s>" (Int32.to_int addr) lbl
+  | Label lbl -> lbl
   | Unknown -> "unknown"
-
 
 let to_string asm =
   let of_op = op_to_string in
@@ -169,10 +172,74 @@ let to_string asm =
     | And (op1, op2) -> "and", concat (of_op op1) (of_op op2)
     | Or (op1, op2) -> "or", concat (of_op op1) (of_op op2)
     | Je op -> "je", of_op op
+    | Jne op -> "jne", of_op op
     | Jge op -> "jge", of_op op
     | Jle op -> "jle", of_op op
     | Jmp op -> "jmp", of_op op
     | Call op -> "call", of_op op
     | Ret -> "ret", ""
+    | Label lbl -> sprintf "%s:" (of_op lbl), ""
     | Unknown -> "unknown", "" in
   Printf.sprintf "%s %s" mnem_str op_str
+
+let lbl_index = ref 0
+let get_lbl =
+  let ret = !lbl_index in
+  let _ = !lbl_index + 1 in
+  sprintf "L%d" ret
+
+let lblMap = ref LabelMap.empty
+let add_lbl asm =
+  let ret = match asm with
+    | Je op -> op_to_string op
+    | Jne op -> op_to_string op
+    | Jge op -> op_to_string op
+    | Jle op -> op_to_string op
+    | Jmp op -> op_to_string op
+    | Call op -> op_to_string op
+    | _ -> "" in
+  let lbl = if ret = "" then "" else get_lbl in
+  if ret = "" then () else lblMap := LabelMap.add ret (sprintf " %s" lbl) !lblMap
+
+let rec register_lbl asms =
+  match asms with
+  | [] -> ()
+  | asm::_asms -> 
+    let _ = add_lbl asm in
+    register_lbl _asms
+
+let replace_op op_str =
+  if LabelMap.mem op_str !lblMap then
+    LabelMap.find op_str !lblMap
+  else
+    op_str
+
+let replace_from_asm asm =
+  match asm with
+  | Je (Label str) -> Je (Label (replace_op str))
+  | Jne (Label str) -> Jne (Label (replace_op str))
+  | Jle (Label str) -> Jle (Label (replace_op str))
+  | Jge (Label str) -> Jge (Label (replace_op str))
+  | Jmp (Label str) -> Jmp (Label (replace_op str))
+  | Call (Label str) -> Call (Label (replace_op str))
+  | _ -> asm
+
+let insert_lbl asms addrs =
+  let _ = register_lbl asms in
+  let asms_rev = List.rev asms in
+  let addrs_rev = List.rev addrs in
+  let rec insert_lbl asm addrs ret =
+    match (asm, addrs) with
+    | ([], []) -> ret
+    | (asm::_asms, []) -> ret
+    | ([], addr::_addrs) -> ret
+    | (asm::_asms, addr::_addrs) -> 
+      if LabelMap.mem addr !lblMap then
+        let lbl = Label (Label (LabelMap.find addr !lblMap)) in
+        let _asm = replace_from_asm asm in
+        insert_lbl _asms _addrs (lbl::_asm::ret)
+      else
+        let _asm = replace_from_asm asm in
+        insert_lbl _asms _addrs (_asm::ret) in
+  insert_lbl asms_rev addrs_rev []
+
