@@ -6,16 +6,14 @@ type ast =
   | Mul of ast * ast
   | Div of ast * ast
   | Assign of ast * ast
-  | Je of ast * ast
-  | Jne of ast * ast
-  | Jge of ast * ast
-  | Jle of ast * ast
+  | JmpCond of ast * ast
   | Jmp of ast
   | Cond of ast * ast
   | Call of ast * ast list
   | Ret of ast
   | Ref of ast
   | Equal of ast
+  | NotEqual of ast
   | Above of ast
   | Below of ast
   | And of ast * ast
@@ -139,9 +137,10 @@ let emit_ast line =
       let a = ref (Or (!(state_ast op1), !(state_ast op2))) in
       let _ = (state_ast op1) := !a in
       a
-    | Asm.Jle op -> ref (Jle (!State.eflags, !(state_ast op)))
-    | Asm.Jge op -> ref (Jge (!State.eflags, !(state_ast op)))
-    | Asm.Jne op -> ref (Jne (!State.eflags, !(state_ast op)))
+    | Asm.Jle op -> ref (JmpCond (Below !State.eflags, !(state_ast op)))
+    | Asm.Jge op -> ref (JmpCond (Above !State.eflags, !(state_ast op)))
+    | Asm.Je op -> ref (JmpCond (NotEqual !State.eflags, !(state_ast op)))
+    | Asm.Jne op -> ref (JmpCond (Equal !State.eflags, !(state_ast op)))
     | Asm.Jmp op -> ref (Jmp !(state_ast op))
     | Asm.Push op -> State.esp := !(state_ast op)::(!State.esp); ref Emp
     | Asm.Call op ->
@@ -161,12 +160,10 @@ let rec to_string ast =
   | Mul (ast1, ast2) -> sprintf "(%s * %s)" (to_string ast1) (to_string ast2)
   | Div (ast1, ast2) -> sprintf "(%s / %s)" (to_string ast1) (to_string ast2)
   | Assign (ast1, ast2) -> sprintf "%s = %s" (to_string ast1) (to_string ast2)
-  | Je (Cond (ast1_1, ast1_2), ast2) -> sprintf "if(%s != %s) goto %s" (to_string ast1_1) (to_string ast1_2) (to_string ast2)
-  | Jne (Cond (ast1_1, ast1_2), ast2) -> sprintf "if(%s == %s) goto %s" (to_string ast1_1) (to_string ast1_2) (to_string ast2)
-  | Jge (Cond (ast1_1, ast1_2), ast2) -> sprintf "if(%s < %s) goto %s" (to_string ast1_1) (to_string ast1_2) (to_string ast2)
-  | Jle (Cond (ast1_1, ast1_2), ast2) -> sprintf "if(%s > %s) goto %s" (to_string ast1_1) (to_string ast1_2) (to_string ast2)
+  | JmpCond (ast1, ast2) -> sprintf "if(%s) goto %s" (to_string ast1) (to_string ast2)
   | Jmp ast -> sprintf "goto %s" (to_string ast)
   | Equal Cond (ast1, ast2) -> sprintf "(%s == %s)" (to_string ast1) (to_string ast2)
+  | NotEqual Cond (ast1, ast2) -> sprintf "(%s == %s)" (to_string ast1) (to_string ast2)
   | Below Cond (ast1, ast2) -> sprintf "(%s < %s)" (to_string ast1) (to_string ast2)
   | Above Cond (ast1, ast2) -> sprintf "(%s > %s)" (to_string ast1) (to_string ast2)
   | And (ast1, ast2) -> sprintf "(%s & %s)" (to_string ast1) (to_string ast2)
