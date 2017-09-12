@@ -50,7 +50,8 @@ let state_ast op =
   | Asm.Local _ -> ref (Value op)
   | Asm.Arg _ -> ref (Value op)
   | Asm.Reg reg -> state_reg reg
-  | Asm.Label _ -> ref (Value op)
+  | Asm.FuncLabel _ -> ref (Value op)
+  | Asm.Label _ -> ref (Label (Asm.op_to_string op))
   | _ -> ref Emp
 
 let first_op line = 
@@ -70,7 +71,6 @@ let is_jmp_mnem line =
   | Asm.Jne _ -> true
   | Asm.Jle _ -> true
   | Asm.Jge _ -> true
-  | Asm.Call _ -> true
   | Asm.Ret  -> true
   | _ -> false
 
@@ -210,7 +210,8 @@ let to_ast asms =
       match x with
       (* FIXME better solution *)
       | x when skip x -> _to_ast xs ast
-      | x when ((is_local_from_op1 x) || (is_jmp_mnem x) || (is_label x)) && not (is_used x xs) -> 
+      | Asm.Call _ when not (is_used x xs) -> _to_ast xs ((!_ast)::ast)
+      | x when (is_local_from_op1 x) || (is_jmp_mnem x) || (is_label x) -> 
         _to_ast xs ((!_ast)::ast)
       | _ -> _to_ast xs ast in
   _to_ast asms []

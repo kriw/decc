@@ -12,6 +12,7 @@ type operand =
   | Local of string
   | Arg of string
   | Reg of reg
+  | FuncLabel of string
   | Label of string
   | Unknown
 
@@ -145,6 +146,7 @@ let op_to_string op =
   | Local lbl -> sprintf "%s_%s" "local" lbl
   | Arg lbl -> sprintf "%s_%s" "arg" lbl
   | Reg reg -> reg_to_string reg
+  | FuncLabel lbl -> lbl
   | Label lbl -> lbl
   | Unknown -> "unknown"
 
@@ -222,7 +224,7 @@ let replace_from_asm asm =
   | Jle (Label str) -> Jle (Label (replace_op str))
   | Jge (Label str) -> Jge (Label (replace_op str))
   | Jmp (Label str) -> Jmp (Label (replace_op str))
-  | Call (Label str) -> Call (Label (replace_op str))
+  | Call (Label str) -> Call (FuncLabel (replace_op str))
   | _ -> asm
 
 let insert_lbl asms addrs =

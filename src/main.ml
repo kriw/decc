@@ -11,8 +11,11 @@ let _ =
       let asms = List.map (fun (x, y) -> Asm.to_asm x y) (List.combine mnems ops) in
       let asms_with_lbl = Asm.insert_lbl asms addrs in
       let asts = Ast.to_ast asms_with_lbl in
-      let func = Backend.emit_func k asts in
-      print_endline func
+      let ctl_flow = ControlFlow.from_ast asts in
+      let with_if = ControlFlow.restore_if ctl_flow in
+      List.iter print_endline (List.map ControlFlow.to_string with_if)
+      (* let func = Backend.emit_func k asts in *)
+      (* print_endline func *)
       (* List.iter (fun x -> print_endline (Ast.to_string x)) asts *)
       (* List.iter (fun x -> Ast.print_ast x) asts *)
       (* print_endline k; List.iter (fun asm -> print_endline (Asm.to_string asm)) asms *)
