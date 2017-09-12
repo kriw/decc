@@ -1,5 +1,6 @@
 .omakedb
 .omakedb.lock
+.merlin
 *.pyc
 *.swp
 *.omc
