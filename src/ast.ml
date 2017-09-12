@@ -74,11 +74,14 @@ let is_jmp_mnem line =
   | Asm.Ret  -> true
   | _ -> false
 
-let is_local_from_op1 line =
-  let operand = first_op line in
-  match operand with
+let is_local op =
+  match op with
   | Asm.Local str -> true
   | _ -> false
+
+let is_local_from_op1 line =
+  let operand = first_op line in
+  is_local operand
 
 let is_reg_from_op1 line =
   let operand = first_op line in
@@ -87,71 +90,76 @@ let is_reg_from_op1 line =
   | _ -> false
 
 let emit_ast line =
-  let ast = match line with
-    | Asm.Mov (op1, op2) -> 
-      let a = ref (Assign (!(state_ast op1), !(state_ast op2))) in
-      let _ = (state_ast op1) := !(state_ast op2) in
-      a
-    | Asm.Lea (op1, op2) -> 
-      let a = ref (Assign (!(state_ast op1), Ref !(state_ast op2))) in
-      let _ = (state_ast op1) := Ref !(state_ast op2) in
-      a
-    | Asm.Add (op1, op2) -> 
-      let a = ref (Add (!(state_ast op1), !(state_ast op2))) in
-      let _ = (state_ast op1) := !a in
-      a
-    | Asm.Sub (op1, op2) -> 
-      let a = ref (Sub (!(state_ast op1), !(state_ast op2))) in
-      let _ = (state_ast op1) := !a in
-      a
-    | Asm.Mul (op1, op2) ->
-      let a = ref (Mul (!(state_ast op1), !(state_ast op2))) in
-      let _ = (state_ast op1) := !a in
-      a
-    | Asm.Div op ->
-      let a = ref (Div (!State.eax, !(state_ast op))) in
-      let _ = (State.eax) := !a in
-      a
-    | Asm.Cmp (op1, op2) ->
-      let a = ref (Cond (!(state_ast op1), !(state_ast op2))) in
-      let _ = State.eflags := !a in
-      a
-    (* FIXME assign not to reg, but to reg[:8]  *)
-    | Asm.Sete op ->
-      let a = ref (Equal !State.eflags) in
-      let _ = (state_ast op) := !a in
-      a
-    | Asm.Setg op ->
-      let a = ref (Above !State.eflags) in
-      let _ = (state_ast op) := !a in
-      a
-    | Asm.Setl op ->
-      let a = ref (Below !State.eflags) in
-      let _ = (state_ast op) := !a in
-      a
-    | Asm.And (op1, op2) ->
-      let a = ref (And (!(state_ast op1), !(state_ast op2))) in
-      let _ = (state_ast op1) := !a in
-      a
-    | Asm.Or (op1, op2) ->
-      let a = ref (Or (!(state_ast op1), !(state_ast op2))) in
-      let _ = (state_ast op1) := !a in
-      a
-    | Asm.Jle op -> ref (JmpCond (Below !State.eflags, !(state_ast op)))
-    | Asm.Jge op -> ref (JmpCond (Above !State.eflags, !(state_ast op)))
-    | Asm.Je op -> ref (JmpCond (NotEqual !State.eflags, !(state_ast op)))
-    | Asm.Jne op -> ref (JmpCond (Equal !State.eflags, !(state_ast op)))
-    | Asm.Jmp op -> ref (Jmp !(state_ast op))
-    | Asm.Push op -> State.esp := !(state_ast op)::(!State.esp); ref Emp
-    | Asm.Call op ->
-      let a = ref (Call (!(state_ast op), !State.esp)) in
-      let _ = State.esp := [] in
-      let _ = State.eax := !a in
-      a
-    | Asm.Label lbl -> ref (Label (Asm.op_to_string lbl))
-    | Asm.Ret -> ref (Ret !State.eax)
-    | _ -> ref Emp in
-  ast
+  match line with
+  | Asm.Mov (op1, op2) -> 
+    let a = ref (Assign (!(state_ast op1), !(state_ast op2))) in
+    let _ = (state_ast op1) := !(state_ast op2) in
+    a
+  | Asm.Lea (op1, op2) -> 
+    let a = ref (Assign (!(state_ast op1), Ref !(state_ast op2))) in
+    let _ = (state_ast op1) := Ref !(state_ast op2) in
+    a
+  | Asm.Add (op1, op2) -> 
+    let a = ref (Add (!(state_ast op1), !(state_ast op2))) in
+    let _ = if is_local op1 then
+        a := (Assign (!(state_ast op1), !a))
+      else 
+        (state_ast op1) :=  !a in
+    a
+  | Asm.Sub (op1, op2) -> 
+    let a = ref (Sub (!(state_ast op1), !(state_ast op2))) in
+    let _ = if is_local op1 then
+        a := (Assign (!(state_ast op1), !a))
+      else
+        (state_ast op1) := !a in
+    a
+  | Asm.Mul (op1, op2) ->
+    let a = ref (Mul (!(state_ast op1), !(state_ast op2))) in
+    let _ = (state_ast op1) := !a in
+    a
+  | Asm.Div op ->
+    let a = ref (Div (!State.eax, !(state_ast op))) in
+    let _ = (State.eax) := !a in
+    a
+  | Asm.Cmp (op1, op2) ->
+    let a = ref (Cond (!(state_ast op1), !(state_ast op2))) in
+    let _ = State.eflags := !a in
+    a
+  (* FIXME assign not to reg, but to reg[:8]  *)
+  | Asm.Sete op ->
+    let a = ref (Equal !State.eflags) in
+    let _ = (state_ast op) := !a in
+    a
+  | Asm.Setg op ->
+    let a = ref (Above !State.eflags) in
+    let _ = (state_ast op) := !a in
+    a
+  | Asm.Setl op ->
+    let a = ref (Below !State.eflags) in
+    let _ = (state_ast op) := !a in
+    a
+  | Asm.And (op1, op2) ->
+    let a = ref (And (!(state_ast op1), !(state_ast op2))) in
+    let _ = (state_ast op1) := !a in
+    a
+  | Asm.Or (op1, op2) ->
+    let a = ref (Or (!(state_ast op1), !(state_ast op2))) in
+    let _ = (state_ast op1) := !a in
+    a
+  | Asm.Jle op -> ref (JmpCond (Below !State.eflags, !(state_ast op)))
+  | Asm.Jge op -> ref (JmpCond (Above !State.eflags, !(state_ast op)))
+  | Asm.Je op -> ref (JmpCond (NotEqual !State.eflags, !(state_ast op)))
+  | Asm.Jne op -> ref (JmpCond (Equal !State.eflags, !(state_ast op)))
+  | Asm.Jmp op -> ref (Jmp !(state_ast op))
+  | Asm.Push op -> State.esp := !(state_ast op)::(!State.esp); ref Emp
+  | Asm.Call op ->
+    let a = ref (Call (!(state_ast op), !State.esp)) in
+    let _ = State.esp := [] in
+    let _ = State.eax := !a in
+    a
+  | Asm.Label lbl -> ref (Label (Asm.op_to_string lbl))
+  | Asm.Ret -> ref (Ret !State.eax)
+  | _ -> ref Emp
 
 let rec to_string ast =
   match ast with

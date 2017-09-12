@@ -1,7 +1,5 @@
 open Printf
-(* FIXME use map<int> *)
 module LabelMap = Map.Make(String);;
-(* module LabelMap = Map.Make(struct type t = int let compare = compare end) *)
 
 
 type reg = Eax | Ebx | Ecx | Edx | Edi | Esi 
