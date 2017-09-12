@@ -184,6 +184,10 @@ let rec to_string ast =
   | Emp -> "emp"
   | _ -> "unknown"
 
+let print_ast ast = match ast with
+  | Label _ -> print_endline (to_string ast)
+  | _ -> printf "%s;\n" (to_string ast)
+
 (* FIXME *)
 let skip line =
   match line with
