@@ -17,7 +17,12 @@ let rec to_string ast =
     let body = List.map to_string procs in
     let footer = "}" in
     String.concat "" (List.flatten [[header]; body; [footer]])
-  | For (init, cond, update, procs) -> ""
+  | For (init, cond, update, procs) ->
+    let header = sprintf "for(%s; %s; %s) {"
+        (_to_string init) (_to_string cond) (_to_string update) in
+    let body = List.map to_string procs in
+    let footer = "}" in
+    String.concat "" (List.flatten [[header]; body; [footer]])
   | _ -> ""
 
 let rec from_ast asts =
@@ -48,28 +53,31 @@ let rec restore_if asts =
       _if::(restore_if right)
     | _ -> ast :: (restore_if _asts)
 
-(* let restore_for asts = *)
-(*   let rec _restore asts used = *)
-(*     match asts with *)
-(*     | [] -> [None] *)
-(*     | ast::_asts -> *)
-(*       match ast with *)
-(*       | Ast (Ast.Jmp lbl) -> *)
-(*         let proc, cond, update, remain =  *)
-(*           match take_while (fun x -> not (x = Ast lbl)) _asts with *)
-(*           | [], [] -> [], Ast.Emp, Ast.Emp, [] *)
-(*           | ls, [] -> [], Ast.Emp, Ast.Emp, [] *)
-(*           | [], rs -> [], Ast.Emp, Ast.Emp, [] *)
-(*           | l::ls, r::rs -> *)
-(*             match l, r with *)
-(*             | (Ast (Ast.Label lbl), Ast (Ast.JmpCond (cond, _))) -> *)
-(*               ls, cond, List.hd rs, List.tl rs *)
-(*             | _ -> [], Ast.Emp, Ast.Emp, [] *)
-(*             | _ -> [], Ast.Emp, Ast.Emp, [] *)
-(*         in *)
-(*         let init = List.hd used in *)
-(*         (For (init, Ast cond, Ast update, proc)) :: (_restore remain) *)
-(*       | _ -> [None] in *)
+let restore_for asts =
+  let rec _restore asts prev ret =
+    match asts with
+    | [] -> List.rev ret
+    | _::[] -> List.rev ret
+    | init::jmp::_asts ->
+      match jmp with
+      | Ast (Ast.Jmp lbl0) ->
+        let index_lbl0 = Util.find_index (fun x -> x = Ast lbl0) _asts in
+        let cond, lbl1 = 
+          match List.nth _asts (index_lbl0+1) with
+          | Ast (Ast.JmpCond (cond, lbl)) -> cond, lbl
+          | _ -> Ast.Emp, Ast.Emp in
+        let index_lbl1 = Util.find_index (fun x -> x = Ast lbl1) _asts in
+        if index_lbl1 == 0 then
+          let procs = Util.take _asts (index_lbl0-1) in
+          let update = List.nth  _asts (index_lbl0-1) in
+          let remains = Util.drop _asts (index_lbl0+2) in
+          (For (prev, Ast cond, update, procs))::(remains)
+        else 
+          let _ = printf "index_lbl1 %d" index_lbl1 in
+          _restore (jmp::_asts) init (init::ret)
+      | _ -> _restore (jmp::_asts) init (init::ret)
+  in
+  _restore asts None []
 
 let delete_labels asts =
   let rec _del asts ret =
@@ -77,7 +85,14 @@ let delete_labels asts =
     | [] -> List.rev ret
     | (Ast (Ast.Label _))::_asts -> _del _asts ret
     | If (cond, proc)::_asts -> _del _asts ((If (cond, _del proc []))::ret)
-    (* TODO For *)
+    | For (init, cond, update, proc)::_asts ->
+      _del _asts ((For (init, cond, update, _del proc []))::ret)
     | ast::_asts -> _del _asts (ast::ret) in
   _del asts []
+
+let restore_control_flow asts =
+  let with_if = restore_if asts in
+  let with_for = restore_for with_if in
+  delete_labels with_for
+
 

@@ -12,13 +12,8 @@ let _ =
       let asms_with_lbl = Asm.insert_lbl asms addrs in
       let asts = Ast.to_ast asms_with_lbl in
       let ctl_flow = ControlFlow.from_ast asts in
-      let with_if = ControlFlow.restore_if ctl_flow in
-      let without_label = ControlFlow.delete_labels with_if in
-      let func = Backend.emit_func k without_label in
-      print_endline func
-      (* List.iter (fun x -> print_endline (Ast.to_string x)) asts *)
-      (* List.iter (fun x -> Ast.print_ast x) asts *)
-      (* print_endline k; List.iter (fun asm -> print_endline (Asm.to_string asm)) asms *)
-      (* print_endline k; List.iter (fun asm -> print_endline (Asm.to_string asm)) asms_with_lbl *)
-      (* print_endline k; List.iter (fun (asm, addr) -> Printf.printf "%s %s\n" addr (Asm.to_string asm)) (List.combine asms addrs) *)
+      let restored = ControlFlow.restore_control_flow ctl_flow in
+      let func = Backend.emit_func k restored in
+      let _ = print_endline func in
+      ()
     ) codes
