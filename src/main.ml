@@ -13,7 +13,8 @@ let _ =
       let asts = Ast.to_ast asms_with_lbl in
       let ctl_flow = ControlFlow.from_ast asts in
       let with_if = ControlFlow.restore_if ctl_flow in
-      let func = Backend.emit_func k with_if in
+      let without_label = ControlFlow.delete_labels with_if in
+      let func = Backend.emit_func k without_label in
       print_endline func
       (* List.iter (fun x -> print_endline (Ast.to_string x)) asts *)
       (* List.iter (fun x -> Ast.print_ast x) asts *)

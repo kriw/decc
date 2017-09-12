@@ -70,3 +70,14 @@ let rec restore_if asts =
 (*         let init = List.hd used in *)
 (*         (For (init, Ast cond, Ast update, proc)) :: (_restore remain) *)
 (*       | _ -> [None] in *)
+
+let delete_labels asts =
+  let rec _del asts ret =
+    match asts with
+    | [] -> List.rev ret
+    | (Ast (Ast.Label _))::_asts -> _del _asts ret
+    | If (cond, proc)::_asts -> _del _asts ((If (cond, _del proc []))::ret)
+    (* TODO For *)
+    | ast::_asts -> _del _asts (ast::ret) in
+  _del asts []
+
