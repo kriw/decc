@@ -12,7 +12,7 @@ type ast =
   | Jle of ast * ast
   | Jmp of ast
   | Cond of ast * ast
-  | Call of ast
+  | Call of ast * ast list
   | Ret of ast
   | Ref of ast
   | Equal of ast
@@ -31,9 +31,7 @@ module State = struct
   let edx = ref Emp
   let edi = ref Emp
   let esi = ref Emp
-  (* let ebp = ref Emp *)
-  (* let esp = ref Emp *)
-  (* let eip = ref Emp *)
+  let esp = ref [] (*Stack*)
   let eflags = ref Emp
 end
 
@@ -141,21 +139,18 @@ let emit_ast line =
       let a = ref (Or (!(state_ast op1), !(state_ast op2))) in
       let _ = (state_ast op1) := !a in
       a
-    | Asm.Jle op ->
-      ref (Jle (!State.eflags, !(state_ast op)))
-    | Asm.Jge op ->
-      ref (Jge (!State.eflags, !(state_ast op)))
-    | Asm.Jne op ->
-      ref (Jne (!State.eflags, !(state_ast op)))
-    | Asm.Jmp op ->
-      ref (Jmp !(state_ast op))
+    | Asm.Jle op -> ref (Jle (!State.eflags, !(state_ast op)))
+    | Asm.Jge op -> ref (Jge (!State.eflags, !(state_ast op)))
+    | Asm.Jne op -> ref (Jne (!State.eflags, !(state_ast op)))
+    | Asm.Jmp op -> ref (Jmp !(state_ast op))
+    | Asm.Push op -> State.esp := !(state_ast op)::(!State.esp); ref Emp
     | Asm.Call op ->
-      let a = ref (Call !(state_ast op)) in
+      let a = ref (Call (!(state_ast op), !State.esp)) in
+      let _ = State.esp := [] in
       let _ = State.eax := !a in
       a
     | Asm.Label lbl -> ref (Label (Asm.op_to_string lbl))
-    | Asm.Ret ->
-      ref (Ret !State.eax)
+    | Asm.Ret -> ref (Ret !State.eax)
     | _ -> ref Emp in
   ast
 
@@ -170,20 +165,23 @@ let rec to_string ast =
   | Jne (Cond (ast1_1, ast1_2), ast2) -> sprintf "if(%s == %s) goto %s" (to_string ast1_1) (to_string ast1_2) (to_string ast2)
   | Jge (Cond (ast1_1, ast1_2), ast2) -> sprintf "if(%s < %s) goto %s" (to_string ast1_1) (to_string ast1_2) (to_string ast2)
   | Jle (Cond (ast1_1, ast1_2), ast2) -> sprintf "if(%s > %s) goto %s" (to_string ast1_1) (to_string ast1_2) (to_string ast2)
-  | Jmp ast -> "" (* TODO *)
+  | Jmp ast -> sprintf "goto %s" (to_string ast)
   | Equal Cond (ast1, ast2) -> sprintf "(%s == %s)" (to_string ast1) (to_string ast2)
   | Below Cond (ast1, ast2) -> sprintf "(%s < %s)" (to_string ast1) (to_string ast2)
   | Above Cond (ast1, ast2) -> sprintf "(%s > %s)" (to_string ast1) (to_string ast2)
   | And (ast1, ast2) -> sprintf "(%s & %s)" (to_string ast1) (to_string ast2)
   | Or (ast1, ast2) -> sprintf "(%s | %s)" (to_string ast1) (to_string ast2)
-  | Call ast -> "" (* TODO *)
+  | Call (ast, args) -> sprintf "%s(%s)" (to_string ast) (String.concat ", " (List.map to_string args))
   | Ret ast -> sprintf "return %s" (to_string ast)
   | Ref ast -> sprintf "&(%s)"  (to_string ast)
   | Value op -> Asm.op_to_string op
   | Label lbl -> sprintf "%s:" lbl
-  | Emp -> "emp"
+  | Emp -> ""
   | _ -> "unknown"
 
+let sprint_ast ast = match ast with
+  | Label _ -> sprintf "%s\n" (to_string ast)
+  | _ -> sprintf "%s;\n" (to_string ast)
 let print_ast ast = match ast with
   | Label _ -> print_endline (to_string ast)
   | _ -> printf "%s;\n" (to_string ast)
@@ -199,6 +197,13 @@ let is_label ast =
   | Asm.Label _ -> true
   | _ -> false
 
+let rec is_used ast asts =
+  match asts with
+  | [] -> false
+  | _ast::_asts -> 
+    if ast = _ast then true
+    else is_used ast _asts
+
 let to_ast asms = 
   let rec _to_ast asms ast =
     match asms with
@@ -208,7 +213,7 @@ let to_ast asms =
       match x with
       (* FIXME better solution *)
       | x when skip x -> _to_ast xs ast
-      | x when (is_local_from_op1 x) || (is_jmp_mnem x) || (is_label x) -> 
+      | x when ((is_local_from_op1 x) || (is_jmp_mnem x) || (is_label x)) && not (is_used x xs) -> 
         _to_ast xs ((!_ast)::ast)
       | _ -> _to_ast xs ast in
   _to_ast asms []

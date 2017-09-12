@@ -1,6 +1,8 @@
 open Printf
 (* FIXME use map<int> *)
 module LabelMap = Map.Make(String);;
+(* module LabelMap = Map.Make(struct type t = int let compare = compare end) *)
+
 
 type reg = Eax | Ebx | Ecx | Edx | Edi | Esi 
          | Al | Bl | Cl | Dl | Else
@@ -32,6 +34,7 @@ type asm =
   | Jge of operand
   | Jle of operand
   | Jmp of operand
+  | Push of operand
   | Call of operand
   | Ret
   | Label of operand
@@ -92,14 +95,6 @@ let to_operand op =
     Label label
   | _ -> print_endline "fail"; print_endline op; Unknown
 
-(* TODO *)
-(* let call_regex = Str.regexp "\\([0-9a-fA-F]+\\) <\\(.*\\)>" *)
-(* let is_call op = Str.string_match call_regex op 0 *)
-(* let parse_call_op op = *)
-(*   let addr = Str.global_replace call_regex "0x\\1" op in *)
-(*   let label = Str.global_replace call_regex "\\2" op in *)
-(*   label, addr *)
-
 let match_set_eflag mnem =
   let pattern = Str.regexp "set[egl]" in
   Str.string_match pattern mnem 0
@@ -125,6 +120,7 @@ let to_asm mnem ops =
   | "jge" -> Jge  (first ops)
   | "jle" -> Jle  (first ops)
   | "jmp" -> Jmp (first ops)
+  | "push" -> Push (first ops)
   | "call" -> Call (first ops)
   | "ret" -> Ret
   | _ -> Unknown
@@ -176,6 +172,7 @@ let to_string asm =
     | Jge op -> "jge", of_op op
     | Jle op -> "jle", of_op op
     | Jmp op -> "jmp", of_op op
+    | Push op -> "push", of_op op
     | Call op -> "call", of_op op
     | Ret -> "ret", ""
     | Label lbl -> sprintf "%s:" (of_op lbl), ""
@@ -183,12 +180,13 @@ let to_string asm =
   Printf.sprintf "%s %s" mnem_str op_str
 
 let lbl_index = ref 0
-let get_lbl =
+let get_lbl () =
   let ret = !lbl_index in
-  let _ = !lbl_index + 1 in
+  let _ = lbl_index := !lbl_index + 1 in
   sprintf "L%d" ret
 
-let lblMap = ref LabelMap.empty
+let lbl_map = ref LabelMap.empty
+let add_func func_name addr = lbl_map := LabelMap.add addr func_name !lbl_map
 let add_lbl asm =
   let ret = match asm with
     | Je op -> op_to_string op
@@ -196,10 +194,13 @@ let add_lbl asm =
     | Jge op -> op_to_string op
     | Jle op -> op_to_string op
     | Jmp op -> op_to_string op
-    | Call op -> op_to_string op
+    | Call op -> op_to_string op 
     | _ -> "" in
-  let lbl = if ret = "" then "" else get_lbl in
-  if ret = "" then () else lblMap := LabelMap.add ret (sprintf " %s" lbl) !lblMap
+  let lbl = if ret = "" then "" else get_lbl () in
+  match ret with
+  | "" -> ()
+  | _ when LabelMap.mem ret !lbl_map -> ()
+  | _ -> lbl_map := LabelMap.add ret lbl !lbl_map
 
 let rec register_lbl asms =
   match asms with
@@ -209,8 +210,8 @@ let rec register_lbl asms =
     register_lbl _asms
 
 let replace_op op_str =
-  if LabelMap.mem op_str !lblMap then
-    LabelMap.find op_str !lblMap
+  if LabelMap.mem op_str !lbl_map then
+    LabelMap.find op_str !lbl_map
   else
     op_str
 
@@ -234,8 +235,8 @@ let insert_lbl asms addrs =
     | (asm::_asms, []) -> ret
     | ([], addr::_addrs) -> ret
     | (asm::_asms, addr::_addrs) -> 
-      if LabelMap.mem addr !lblMap then
-        let lbl = Label (Label (LabelMap.find addr !lblMap)) in
+      if LabelMap.mem addr !lbl_map then
+        let lbl = Label (Label (LabelMap.find addr !lbl_map)) in
         let _asm = replace_from_asm asm in
         insert_lbl _asms _addrs (lbl::_asm::ret)
       else

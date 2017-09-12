@@ -24,6 +24,10 @@ let append k v m =
     StringMap.add k new_lst m
   | false -> StringMap.add k [v] m
 
+let trim_0s addr =
+  let ptn = Str.regexp "0*\\([1-9a-fA-F][0-9a-fA-F]*\\)" in
+  Str.global_replace ptn "\\1" addr
+
 let rec parse_objdump lines funcName codes addrs =
   match lines with
   | [] -> (codes, addrs)
@@ -32,7 +36,7 @@ let rec parse_objdump lines funcName codes addrs =
     let addrFunc = Str.split (Str.regexp_string ",") (extract_header head) in
     let addr = List.nth addrFunc 0 in
     let func = List.nth addrFunc 1 in
-    parse_objdump tail func codes (StringMap.add func addr addrs)
+    parse_objdump tail func codes (StringMap.add func (trim_0s addr) addrs)
   | head :: tail when String.equal funcName "" -> 
     parse_objdump tail funcName codes addrs
   | head :: tail -> 
