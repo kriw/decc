@@ -2,7 +2,7 @@
 
 x86, x64 native code mini decompiler that decompile to pseudocode like C
 
-'TODO: support for x64 architecture'
+TODO: support for x64 architecture
 
 ## Usage
 ```bash
