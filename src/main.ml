@@ -4,7 +4,8 @@ let ignores = [
   "_init";
   ".plt";
   "__libc_start_main@plt";
-  ".plt.got";
+  "__cxa_finalize@plt";
+  "__gmon_start__@plt";
   "_start";
   "__x86.get_pc_thunk.bx";
   "deregister_tm_clones";
@@ -18,7 +19,6 @@ let ignores = [
   "__x86.get_pc_thunk.si";
   "_fini";
 ]
-
 
 let _ = 
   let lines = load_file Sys.argv.(1) in
