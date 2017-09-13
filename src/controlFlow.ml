@@ -57,7 +57,7 @@ let restore_for asts =
   let rec _restore asts prev ret =
     match asts with
     | [] -> List.rev ret
-    | _::[] -> List.rev ret
+    | ast::[] -> List.rev (ast::ret)
     | init::jmp::_asts ->
       match jmp with
       | Ast (Ast.Jmp lbl0) ->
@@ -94,5 +94,3 @@ let restore_control_flow asts =
   let with_if = restore_if asts in
   let with_for = restore_for with_if in
   delete_labels with_for
-
-
