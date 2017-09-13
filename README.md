@@ -2,6 +2,8 @@
 
 x86, x64 native code mini decompiler that decompile to pseudocode like C
 
+'TODO: support for x64 architecture'
+
 ## Usage
 ```bash
 $ ./run.sh target_binary
