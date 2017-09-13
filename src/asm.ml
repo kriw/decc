@@ -39,6 +39,32 @@ type asm =
   | Label of operand
   | Unknown
 
+let op_list asm =
+  match asm with
+  | Nop -> []
+  | Mov (op1, op2) -> [op1; op2]
+  | Lea (op1, op2) -> [op1; op2]
+  | Add (op1, op2) -> [op1; op2]
+  | Sub (op1, op2) -> [op1; op2]
+  | Mul (op1, op2) -> [op1; op2]
+  | Div op -> [op]
+  | Cmp (op1, op2) -> [op1; op2]
+  | Sete op -> [op]
+  | Setg op -> [op]
+  | Setl op -> [op]
+  | And (op1, op2) -> [op1; op2]
+  | Or (op1, op2) -> [op1; op2]
+  | Je op -> [op]
+  | Jne op -> [op]
+  | Jge op -> [op]
+  | Jle op -> [op]
+  | Jmp op -> [op]
+  | Push op -> [op]
+  | Call op -> [op]
+  | Ret -> []
+  | Label lbl -> [lbl]
+  | Unknown -> []
+
 let is_reg s =
   let reg_pattern1 = Str.regexp "e[abcd]x" in
   let reg_pattern2 = Str.regexp "e[ds]i" in
@@ -147,6 +173,22 @@ let op_to_string op =
   | FuncLabel lbl -> lbl
   | Label lbl -> lbl
   | Unknown -> "unknown"
+
+module ArgSet = Set.Make(String);;
+let count_arg asms =
+  let arg_set = ref ArgSet.empty in
+  let rec _count asms =
+    match asms with
+    | [] -> ()
+    | asm::_asms -> 
+      List.iter (fun x ->
+          match x with
+          | Arg lbl -> arg_set := ArgSet.add lbl !arg_set
+          | _ -> ()
+        ) (op_list asm);
+      _count _asms in
+  let () = _count asms in
+  ArgSet.cardinal !arg_set
 
 let to_string asm =
   let of_op = op_to_string in

@@ -33,10 +33,11 @@ let _ =
         let mnems, ops = insns in
         let asms = List.map (fun (x, y) -> Asm.to_asm x y) (List.combine mnems ops) in
         let asms_with_lbl = Asm.insert_lbl asms addrs in
+        let arg_num = Asm.count_arg asms_with_lbl in
         let asts = Ast.to_ast asms_with_lbl in
         let ctl_flow = ControlFlow.from_ast asts in
         let restored = ControlFlow.restore_control_flow ctl_flow in
-        let func = Backend.emit_func k restored in
+        let func = Backend.emit_func k restored arg_num in
         let _ = print_endline func in
         ()
     ) codes
