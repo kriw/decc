@@ -15,7 +15,9 @@ type ast =
   | Equal of ast
   | NotEqual of ast
   | Above of ast
+  | AboveEq of ast
   | Below of ast
+  | BelowEq of ast
   | And of ast * ast
   | Or of ast * ast
   | Label of string
@@ -146,8 +148,8 @@ let emit_ast line =
     let a = ref (Or (!(state_ast op1), !(state_ast op2))) in
     let _ = (state_ast op1) := !a in
     a
-  | Asm.Jle op -> ref (JmpCond (Below !State.eflags, !(state_ast op)))
-  | Asm.Jge op -> ref (JmpCond (Above !State.eflags, !(state_ast op)))
+  | Asm.Jle op -> ref (JmpCond (BelowEq !State.eflags, !(state_ast op)))
+  | Asm.Jge op -> ref (JmpCond (AboveEq !State.eflags, !(state_ast op)))
   | Asm.Je op -> ref (JmpCond (NotEqual !State.eflags, !(state_ast op)))
   | Asm.Jne op -> ref (JmpCond (Equal !State.eflags, !(state_ast op)))
   | Asm.Jmp op -> ref (Jmp !(state_ast op))
@@ -173,7 +175,9 @@ let rec to_string ast =
   | Equal Cond (ast1, ast2) -> sprintf "(%s == %s)" (to_string ast1) (to_string ast2)
   | NotEqual Cond (ast1, ast2) -> sprintf "(%s == %s)" (to_string ast1) (to_string ast2)
   | Below Cond (ast1, ast2) -> sprintf "(%s < %s)" (to_string ast1) (to_string ast2)
+  | BelowEq Cond (ast1, ast2) -> sprintf "(%s <= %s)" (to_string ast1) (to_string ast2)
   | Above Cond (ast1, ast2) -> sprintf "(%s > %s)" (to_string ast1) (to_string ast2)
+  | AboveEq Cond (ast1, ast2) -> sprintf "(%s >= %s)" (to_string ast1) (to_string ast2)
   | And (ast1, ast2) -> sprintf "(%s & %s)" (to_string ast1) (to_string ast2)
   | Or (ast1, ast2) -> sprintf "(%s | %s)" (to_string ast1) (to_string ast2)
   | Call (ast, args) -> sprintf "%s(%s)" (to_string ast) (String.concat ", " (List.map to_string args))
