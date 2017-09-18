@@ -1,8 +1,7 @@
 # decc
 
 x86, x64 native code mini decompiler that decompile to pseudocode like C
-
-TODO: support for x64 architecture
+(TODO: support for x64 archtecture)
 
 ## Usage
 ```bash
@@ -29,3 +28,10 @@ $
 * Written in OCaml
 * Simple implementation
 * Using objdump as a frontend (disassembler).
+
+## TODO
+* Support for x64 architecture
+* Adding global variables
+* Converting `a = a + 1` to `a += 1`
+* Adding size information to variables
+* Eliminating unnecessary parens
