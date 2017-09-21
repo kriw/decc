@@ -2,7 +2,7 @@ open Printf
 open ControlFlow
 
 let emit_args_label n =
-  let to_label n = sprintf "arg_%d" n in
+  let to_label n = sprintf "arg_0x%x" (4 * n + 4) in
   let rec _emit n ret =
     match n with
     | 0 -> ret

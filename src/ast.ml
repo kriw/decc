@@ -76,6 +76,16 @@ let is_jmp_mnem line =
   | Asm.Ret  -> true
   | _ -> false
 
+let to_not ast =
+  match ast  with
+  | AboveEq _ast -> Below _ast
+  | Above _ast -> BelowEq _ast
+  | BelowEq _ast -> Above _ast
+  | Below _ast -> AboveEq _ast
+  | Equal _ast -> NotEqual _ast
+  | NotEqual _ast -> Equal _ast
+  | _ -> ast
+
 let is_local op =
   match op with
   | Asm.Local str -> true

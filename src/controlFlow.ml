@@ -5,6 +5,11 @@ type control_flow =
   | For of control_flow * control_flow * control_flow * (control_flow list)
   | None
 
+let to_not ast =
+  match ast with
+  | Ast _ast -> Ast (Ast.to_not _ast)
+  | _ -> ast
+
 let rec to_string ast =
   let _to_string ast =
     match ast with
@@ -13,7 +18,7 @@ let rec to_string ast =
   match ast with
   | Ast _ast -> Ast.sprint_ast _ast
   | If (cond, procs) ->
-    let header = sprintf "if(%s) {" (_to_string cond) in
+    let header = sprintf "if(%s) {" (_to_string (to_not cond)) in
     let body = List.map to_string procs in
     let footer = "}" in
     String.concat "" (List.flatten [[header]; body; [footer]])
@@ -54,7 +59,7 @@ let rec restore_if asts =
     | _ -> ast :: (restore_if _asts)
 
 let restore_for asts =
-  let rec _restore asts prev ret =
+  let rec _restore asts ret =
     match asts with
     | [] -> List.rev ret
     | ast::[] -> List.rev (ast::ret)
@@ -71,13 +76,14 @@ let restore_for asts =
           let procs = Util.take _asts (index_lbl0-1) in
           let update = List.nth  _asts (index_lbl0-1) in
           let remains = Util.drop _asts (index_lbl0+2) in
-          (For (prev, Ast cond, update, procs))::(remains)
+          let for_st = For (init, Ast cond, update, procs) in
+          List.append (List.rev ret) (for_st::remains)
         else 
           let _ = printf "index_lbl1 %d" index_lbl1 in
-          _restore (jmp::_asts) init (init::ret)
-      | _ -> _restore (jmp::_asts) init (init::ret)
+          _restore (jmp::_asts) (init::ret)
+      | _ -> _restore (jmp::_asts) (init::ret)
   in
-  _restore asts None []
+  _restore asts []
 
 let delete_labels asts =
   let rec _del asts ret =
