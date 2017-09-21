@@ -160,8 +160,8 @@ let emit_ast line =
     a
   | Asm.Jle op -> ref (JmpCond (BelowEq !State.eflags, !(state_ast op)))
   | Asm.Jge op -> ref (JmpCond (AboveEq !State.eflags, !(state_ast op)))
-  | Asm.Je op -> ref (JmpCond (NotEqual !State.eflags, !(state_ast op)))
-  | Asm.Jne op -> ref (JmpCond (Equal !State.eflags, !(state_ast op)))
+  | Asm.Je op -> ref (JmpCond (Equal !State.eflags, !(state_ast op)))
+  | Asm.Jne op -> ref (JmpCond (NotEqual !State.eflags, !(state_ast op)))
   | Asm.Jmp op -> ref (Jmp !(state_ast op))
   | Asm.Push op -> State.esp := !(state_ast op)::(!State.esp); ref Emp
   | Asm.Call op ->
@@ -183,7 +183,7 @@ let rec to_string ast =
   | JmpCond (ast1, ast2) -> sprintf "if(%s) goto %s" (to_string ast1) (to_string ast2)
   | Jmp ast -> sprintf "goto %s" (to_string ast)
   | Equal Cond (ast1, ast2) -> sprintf "(%s == %s)" (to_string ast1) (to_string ast2)
-  | NotEqual Cond (ast1, ast2) -> sprintf "(%s == %s)" (to_string ast1) (to_string ast2)
+  | NotEqual Cond (ast1, ast2) -> sprintf "(%s != %s)" (to_string ast1) (to_string ast2)
   | Below Cond (ast1, ast2) -> sprintf "(%s < %s)" (to_string ast1) (to_string ast2)
   | BelowEq Cond (ast1, ast2) -> sprintf "(%s <= %s)" (to_string ast1) (to_string ast2)
   | Above Cond (ast1, ast2) -> sprintf "(%s > %s)" (to_string ast1) (to_string ast2)

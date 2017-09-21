@@ -5,7 +5,7 @@ type control_flow =
   | For of control_flow * control_flow * control_flow * (control_flow list)
   | None
 
-let to_not ast =
+let rec to_not ast =
   match ast with
   | Ast _ast -> Ast (Ast.to_not _ast)
   | _ -> ast
